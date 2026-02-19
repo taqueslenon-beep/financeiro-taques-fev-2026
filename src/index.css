@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #223631;
+  --color-primary-light: #2d4a42;
+  --color-offwhite: #f7f7f5;
+  --color-surface: #ffffff;
+  --color-border: #e8e8e4;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-muted: #9b9b9b;
+
+  --color-status-paid-bg: #e8f5e9;
+  --color-status-paid-text: #4a7c59;
+  --color-status-pending-bg: #fff8e1;
+  --color-status-pending-text: #b8860b;
+  --color-status-overdue-bg: #fce8e8;
+  --color-status-overdue-text: #c0392b;
+
+  --color-value-income: #166534;
+  --color-value-expense: #991b1b;
+
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-offwhite text-text-primary antialiased;
+    margin: 0;
+  }
+}

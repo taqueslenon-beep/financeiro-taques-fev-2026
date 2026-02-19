@@ -1,0 +1,138 @@
+/**
+ * Dados mock de lançamentos de cartões de crédito.
+ *
+ * Cada lançamento pertence a um cartão (cardId) que corresponde
+ * ao id de uma conta com type === 'cartao' em accounts.js.
+ */
+
+export const creditCardEntries = [
+  // ── Cartão Lenon (cartao-sicoob-lenon) ────────────────────────
+  {
+    id: 'cc-1',
+    cardId: 'cartao-sicoob-lenon',
+    date: '2026-02-03',
+    description: 'Uber — Deslocamento ao fórum',
+    category: 'Transporte',
+    amount: -47.9,
+    status: 'pendente',
+  },
+  {
+    id: 'cc-2',
+    cardId: 'cartao-sicoob-lenon',
+    date: '2026-02-05',
+    description: 'Almoço de trabalho — Restaurante Oliva',
+    category: 'Alimentação',
+    amount: -128.0,
+    status: 'pendente',
+  },
+  {
+    id: 'cc-3',
+    cardId: 'cartao-sicoob-lenon',
+    date: '2026-02-07',
+    description: 'Adobe Creative Cloud — Assinatura mensal',
+    category: 'Software',
+    amount: -290.0,
+    status: 'pendente',
+  },
+  {
+    id: 'cc-4',
+    cardId: 'cartao-sicoob-lenon',
+    date: '2026-02-10',
+    description: 'Sofá — Sala do Lenon (Parcela 1/10)',
+    category: 'Mobiliário',
+    amount: -890.0,
+    status: 'pago',
+  },
+  {
+    id: 'cc-5',
+    cardId: 'cartao-sicoob-lenon',
+    date: '2026-02-12',
+    description: 'Papelaria e suprimentos — Kalunga',
+    category: 'Material',
+    amount: -215.4,
+    status: 'pendente',
+  },
+  {
+    id: 'cc-6',
+    cardId: 'cartao-sicoob-lenon',
+    date: '2026-02-15',
+    description: 'Google Workspace — Assinatura anual',
+    category: 'Software',
+    amount: -1140.0,
+    status: 'pago',
+  },
+  {
+    id: 'cc-7',
+    cardId: 'cartao-sicoob-lenon',
+    date: '2026-01-08',
+    description: 'Combustível — Posto Shell',
+    category: 'Transporte',
+    amount: -320.0,
+    status: 'pago',
+  },
+  {
+    id: 'cc-8',
+    cardId: 'cartao-sicoob-lenon',
+    date: '2026-01-20',
+    description: 'Jantar com cliente — Processo #1042',
+    category: 'Alimentação',
+    amount: -274.5,
+    status: 'pago',
+  },
+
+  // ── Cartão Berna (cartao-sicoob-berna) ────────────────────────
+  {
+    id: 'cc-9',
+    cardId: 'cartao-sicoob-berna',
+    date: '2026-02-02',
+    description: 'Uber — Visita ao cliente',
+    category: 'Transporte',
+    amount: -35.7,
+    status: 'pendente',
+  },
+  {
+    id: 'cc-10',
+    cardId: 'cartao-sicoob-berna',
+    date: '2026-02-06',
+    description: 'Almoço de trabalho — Bistrot Central',
+    category: 'Alimentação',
+    amount: -96.0,
+    status: 'pendente',
+  },
+  {
+    id: 'cc-11',
+    cardId: 'cartao-sicoob-berna',
+    date: '2026-02-09',
+    description: 'Canva Pro — Assinatura mensal',
+    category: 'Software',
+    amount: -55.0,
+    status: 'pendente',
+  },
+  {
+    id: 'cc-12',
+    cardId: 'cartao-sicoob-berna',
+    date: '2026-02-14',
+    description: 'Material de limpeza — Escritório',
+    category: 'Material',
+    amount: -189.9,
+    status: 'pago',
+  },
+  {
+    id: 'cc-13',
+    cardId: 'cartao-sicoob-berna',
+    date: '2026-01-10',
+    description: 'Combustível — Posto Ipiranga',
+    category: 'Transporte',
+    amount: -250.0,
+    status: 'pago',
+  },
+  {
+    id: 'cc-14',
+    cardId: 'cartao-sicoob-berna',
+    date: '2026-01-25',
+    description: 'Papelaria — Toner para impressora',
+    category: 'Material',
+    amount: -380.0,
+    status: 'pago',
+  },
+]
