@@ -1,14 +1,8 @@
 import { useState, useMemo } from 'react'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
-import { accounts } from '../data/accounts'
+import { useWorkspaceData } from '../contexts/WorkspaceContext'
 import { creditCardEntries } from '../data/creditCardEntries'
 import StatusBadge from './StatusBadge'
-
-/* ------------------------------------------------------------------ */
-/*  Constantes                                                         */
-/* ------------------------------------------------------------------ */
-
-const creditCards = accounts.filter((a) => a.type === 'cartao')
 
 const MONTH_NAMES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -98,6 +92,8 @@ function MonthNavigator({ year, month, onPrev, onNext, onToday, isCurrentMonth }
 /* ------------------------------------------------------------------ */
 
 export default function CreditCardsPage() {
+  const { accounts } = useWorkspaceData()
+  const creditCards = useMemo(() => accounts.filter((a) => a.type === 'cartao'), [accounts])
   const now = new Date()
   const [activeCardId, setActiveCardId] = useState(creditCards[0]?.id || '')
   const [year, setYear] = useState(now.getFullYear())

@@ -1,20 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, Plus, Trash2, ChevronDown, Repeat } from 'lucide-react'
-import { categories } from '../data/categories'
-import { accounts } from '../data/accounts'
+import { useWorkspaceData } from '../contexts/WorkspaceContext'
 
-const allCategories = [
-  ...categories.despesa.map((c) => ({ ...c, group: 'Despesa' })),
-  ...categories.receita.map((c) => ({ ...c, group: 'Receita' })),
+const tipoInvoiceOptions = [
+  { id: 'Variável', label: 'Variável' },
+  { id: 'Fixa', label: 'Fixa' },
+  { id: 'Fixa/Anual', label: 'Fixa/Anual' },
+  { id: 'Parcelamento', label: 'Parcelamento' },
 ]
-
-const recurrenceInvoiceOptions = [
-  { id: 'unico', label: 'Único' },
-  { id: 'fixo', label: 'Fixo' },
-  { id: 'parcelado', label: 'Parcelado' },
-]
-
-const creditCardAccounts = accounts.filter((a) => a.type === 'cartao')
 
 function formatCurrencyBRL(value) {
   return new Intl.NumberFormat('pt-BR', {
@@ -43,6 +36,13 @@ function formatDateBR(dateStr) {
 /* ------------------------------------------------------------------ */
 
 export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, standalone = false, onSaveStandalone }) {
+  const { accounts, categories } = useWorkspaceData()
+  const allCategories = useMemo(() => [
+    ...categories.despesa.map((c) => ({ ...c, group: 'Despesa' })),
+    ...categories.receita.map((c) => ({ ...c, group: 'Receita' })),
+  ], [categories])
+  const creditCardAccounts = useMemo(() => accounts.filter((a) => a.type === 'cartao'), [accounts])
+
   const [items, setItems] = useState([])
   const [selectedCard, setSelectedCard] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')
@@ -51,7 +51,7 @@ export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, st
   const [newDate, setNewDate] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [newCat, setNewCat] = useState('')
-  const [newRecurrence, setNewRecurrence] = useState('unico')
+  const [newRecurrence, setNewRecurrence] = useState('Variável')
   const [newAmount, setNewAmount] = useState('')
   const [newInstallments, setNewInstallments] = useState('')
   const [newType, setNewType] = useState('despesa')
@@ -96,7 +96,7 @@ export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, st
     setNewDate('')
     setNewDesc('')
     setNewCat('')
-    setNewRecurrence('unico')
+    setNewRecurrence('Variável')
     setNewAmount('')
     setNewInstallments('')
     setNewType('despesa')
@@ -138,7 +138,7 @@ export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, st
     setNewAmount(formatCurrencyBRL(numericValue))
   }
 
-  const isParcelado = newRecurrence === 'parcelado'
+  const isParcelado = newRecurrence === 'Parcelamento'
   const parsedInstallments = parseInt(newInstallments, 10) || 0
 
   const canAdd =
@@ -166,7 +166,7 @@ export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, st
           purchaseDate: newDate,
           description: `${newDesc.trim()} (${i + 1}/${parsedInstallments})`,
           categoryId: newCat,
-          recurrence: 'parcelado',
+          recurrence: 'Parcelamento',
           amount: perInstallment,
           type: newType,
           installmentIndex: i,
@@ -228,9 +228,12 @@ export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, st
     return cat ? cat.label : catId
   }
 
-  const getRecurrenceLabel = (rec) => {
-    const opt = recurrenceInvoiceOptions.find((o) => o.id === rec)
-    return opt ? opt.label : rec || 'Único'
+  const getTipoLabel = (rec) => {
+    if (!rec) return 'Variável'
+    const opt = tipoInvoiceOptions.find((o) => o.id === rec)
+    if (opt) return opt.label
+    const legacy = { 'unico': 'Variável', 'fixo': 'Fixa', 'parcelado': 'Parcelamento', 'Mensal': 'Fixa', 'Anual': 'Fixa/Anual' }
+    return legacy[rec] || rec
   }
 
   const filteredCategories = newType === 'receita'
@@ -393,14 +396,14 @@ export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, st
 
             <div className="flex items-end gap-3">
               <div className="w-36">
-                <label className={labelClass}>RECORRÊNCIA</label>
+                <label className={labelClass}>TIPO</label>
                 <div className="relative">
                   <select
                     value={newRecurrence}
                     onChange={(e) => setNewRecurrence(e.target.value)}
                     className={`${inputClass} appearance-none pr-8 cursor-pointer`}
                   >
-                    {recurrenceInvoiceOptions.map((opt) => (
+                    {tipoInvoiceOptions.map((opt) => (
                       <option key={opt.id} value={opt.id}>{opt.label}</option>
                     ))}
                   </select>
@@ -481,7 +484,7 @@ export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, st
                       CATEGORIA
                     </th>
                     <th className="text-left text-[11px] font-medium text-text-muted uppercase tracking-wider px-4 py-2.5">
-                      RECORRÊNCIA
+                      TIPO
                     </th>
                     <th className="text-right text-[11px] font-medium text-text-muted uppercase tracking-wider px-4 py-2.5">
                       VALOR
@@ -499,7 +502,7 @@ export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, st
                   ) : (
                     currentMonthItems.map((item, idx) => {
                       const isRevenue = item.type === 'receita'
-                      const isFixed = item.recurrence === 'fixo'
+                      const isFixed = item.recurrence === 'Fixa' || item.recurrence === 'Fixa/Anual'
                       return (
                         <tr
                           key={item.id}
@@ -522,7 +525,7 @@ export default function InvoiceModal({ isOpen, onClose, invoiceEntry, onSave, st
                             {getCategoryLabel(item.categoryId)}
                           </td>
                           <td className="px-4 py-2 text-sm text-text-secondary">
-                            {getRecurrenceLabel(item.recurrence)}
+                            {getTipoLabel(item.recurrence)}
                           </td>
                           <td className={`px-4 py-2 text-sm font-semibold tabular-nums text-right ${
                             isRevenue ? 'text-value-income' : 'text-value-expense'

@@ -1,4 +1,5 @@
 import { LayoutDashboard, CalendarCheck, Landmark, ShieldAlert, ScrollText, TrendingUp } from 'lucide-react'
+import { useWorkspace } from '../contexts/WorkspaceContext'
 
 const menuItems = [
   { id: 'painel', label: 'Painel do Gestor', icon: LayoutDashboard },
@@ -10,13 +11,15 @@ const menuItems = [
 ]
 
 export default function Sidebar({ activePage, onNavigate }) {
+  const { config } = useWorkspace()
+
   return (
     <aside className="w-72 min-h-screen bg-surface border-r border-border flex flex-col">
       <div className="px-6 py-8">
         <h1 className="text-lg font-semibold tracking-tight text-primary">
           Taques
         </h1>
-        <p className="text-xs text-text-muted mt-0.5">Gestão Financeira</p>
+        <p className="text-xs text-text-muted mt-0.5">{config.subtitle}</p>
       </div>
 
       <nav className="flex-1 px-3">

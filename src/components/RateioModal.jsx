@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react'
 import { X, ChevronDown, Plus, Trash2, CalendarDays, Clock, ChevronRight } from 'lucide-react'
-import { getGroupedAccountsForUser } from '../data/accounts'
-import { getCategoriesByType } from '../data/categories'
+import { useWorkspaceData } from '../contexts/WorkspaceContext'
 
 /* ------------------------------------------------------------------ */
 /*  Constantes                                                         */
@@ -621,6 +620,7 @@ function TabParceiros({ partners, setPartners, form, currentUser }) {
 /* ------------------------------------------------------------------ */
 
 export default function RateioModal({ isOpen, onClose, onSave, currentUser }) {
+  const { getGroupedAccountsForUser, getCategoriesByType } = useWorkspaceData()
   const [activeTab, setActiveTab] = useState('receita')
   const [form, setForm] = useState({
     description: '',
@@ -716,7 +716,7 @@ export default function RateioModal({ isOpen, onClose, onSave, currentUser }) {
         settlementDate: '',
         type: 'Receita',
         status: form.status,
-        recurrence: '—',
+        recurrence: 'Variável',
         accountId: form.accountId,
         categoryId: form.categoryId,
         captador: '',
@@ -728,23 +728,28 @@ export default function RateioModal({ isOpen, onClose, onSave, currentUser }) {
       entries.push(entry)
     }
 
+    const descontoLabel = grossNum > 0
+      ? ` (descontado ${Math.round(((grossNum - partners.reduce((s, p) => s + parse(p.amount), 0)) / grossNum) * 100)}% imposto)`
+      : ''
+
     partners.forEach((partner) => {
       const pTotal = parse(partner.amount)
       const pName = partner.name.trim()
       const pAccount = partner.accountId || form.accountId
       const pCategory = partner.categoryId || 'repasse-parceiro'
       const mode = partner.installmentMode
+      const suffix = pTotal < grossNum ? descontoLabel : ''
 
       if (mode === 'mirror' && isParcelado) {
         for (let i = 0; i < numP; i++) {
           entries.push({
             id: nid(),
-            description: `Repasse — ${pName} (Parcela ${i + 1}/${numP})`,
+            description: `Repasse — ${pName} (Parcela ${i + 1}/${numP})${suffix}`,
             amount: -Math.abs(pTotal / numP),
             dueDate: addMonths(form.dueDate, i),
             settlementDate: '',
             type: 'Despesa',
-            status: 'aguardando',
+            status: 'pendente',
             recurrence: 'Parcelamento',
             accountId: pAccount,
             categoryId: pCategory,
@@ -762,12 +767,12 @@ export default function RateioModal({ isOpen, onClose, onSave, currentUser }) {
         for (let i = 0; i < pNumP; i++) {
           entries.push({
             id: nid(),
-            description: `Repasse — ${pName} (Parcela ${i + 1}/${pNumP})`,
+            description: `Repasse — ${pName} (Parcela ${i + 1}/${pNumP})${suffix}`,
             amount: -Math.abs(pTotal / pNumP),
             dueDate: addMonths(pStart, i),
             settlementDate: '',
             type: 'Despesa',
-            status: 'aguardando',
+            status: 'pendente',
             recurrence: 'Parcelamento',
             accountId: pAccount,
             categoryId: pCategory,
@@ -782,13 +787,13 @@ export default function RateioModal({ isOpen, onClose, onSave, currentUser }) {
       } else {
         entries.push({
           id: nid(),
-          description: `Repasse — ${pName}`,
+          description: `Repasse — ${pName}${suffix}`,
           amount: -Math.abs(pTotal),
           dueDate: form.dueDate,
           settlementDate: '',
           type: 'Despesa',
-          status: 'aguardando',
-          recurrence: '—',
+          status: 'pendente',
+          recurrence: 'Variável',
           accountId: pAccount,
           categoryId: pCategory,
           captador: '',

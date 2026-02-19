@@ -65,6 +65,51 @@ export const accounts = [
   },
 ]
 
+export const personalAccounts = [
+  {
+    id: 'banco-pessoal-lenon',
+    label: 'Conta Pessoal — Sicoob (Lenon)',
+    owner: 'lenon',
+    color: '#1e3a5f',
+    type: 'banco',
+  },
+  {
+    id: 'cartao-pessoal-lenon',
+    label: 'Cartão de Crédito Pessoal (Lenon)',
+    owner: 'lenon',
+    color: '#2563eb',
+    type: 'cartao',
+  },
+  {
+    id: 'poupanca-lenon',
+    label: 'Poupança (Lenon)',
+    owner: 'lenon',
+    color: '#3b82f6',
+    type: 'banco',
+  },
+  {
+    id: 'investimentos-lenon',
+    label: 'Investimentos (Lenon)',
+    owner: 'lenon',
+    color: '#1d4ed8',
+    type: 'reserva',
+  },
+  {
+    id: 'banco-pessoal-berna',
+    label: 'Conta Pessoal — Sicoob (Berna)',
+    owner: 'berna',
+    color: '#7c3aed',
+    type: 'banco',
+  },
+  {
+    id: 'cartao-pessoal-berna',
+    label: 'Cartão de Crédito Pessoal (Berna)',
+    owner: 'berna',
+    color: '#8b5cf6',
+    type: 'cartao',
+  },
+]
+
 /** Filtra contas por responsável */
 export const getAccountsByOwner = (owner) =>
   accounts.filter((a) => a.owner === owner)
@@ -91,5 +136,32 @@ export function getGroupedAccountsForUser(currentUser) {
   return [
     { groupLabel: 'Contas do Lenon', accounts: getAccountsByOwner('lenon') },
     { groupLabel: 'Contas da Berna', accounts: getAccountsByOwner('berna') },
+  ]
+}
+
+/* ── Workspace-aware helpers ────────────────────────────────────── */
+
+export function getAccountsForWorkspace(workspace) {
+  return workspace === 'pessoal' ? personalAccounts : accounts
+}
+
+export function getAccountsByOwnerForWorkspace(workspace, owner) {
+  return getAccountsForWorkspace(workspace).filter((a) => a.owner === owner)
+}
+
+export function getAccountByIdForWorkspace(workspace, id) {
+  return getAccountsForWorkspace(workspace).find((a) => a.id === id)
+}
+
+export function getGroupedAccountsForWorkspace(workspace, currentUser) {
+  const src = getAccountsForWorkspace(workspace)
+  const byOwner = (owner) => src.filter((a) => a.owner === owner)
+
+  if (currentUser === 'berna') {
+    return [{ groupLabel: 'Contas da Berna', accounts: byOwner('berna') }]
+  }
+  return [
+    { groupLabel: 'Contas do Lenon', accounts: byOwner('lenon') },
+    { groupLabel: 'Contas da Berna', accounts: byOwner('berna') },
   ]
 }

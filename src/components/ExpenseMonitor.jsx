@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react'
+import { useWorkspaceData } from '../contexts/WorkspaceContext'
 
 /* ------------------------------------------------------------------ */
 /*  Formatação                                                         */
@@ -31,22 +32,17 @@ function formatDescription(row) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Classificação dos 3 blocos                                         */
+/*  Chaves internas para agrupamento                                   */
 /* ------------------------------------------------------------------ */
 
-function isParcelamento(entry) {
-  return (
-    entry.recurrence === 'Parcelamento' ||
-    /\(Parcela \d+\/\d+\)/.test(entry.description)
-  )
-}
-
-function isDespesaFixa(entry) {
-  return !isParcelamento(entry) && entry.recurrence === 'Fixa'
-}
-
-function isDespesaVariavel(entry) {
-  return !isParcelamento(entry) && entry.recurrence === 'Variável'
+const CLASSIFY_KEY_MAP = {
+  'Fixa': 'fixa',
+  'Impostos': 'impostos',
+  'Parcelamento': 'parcelamento',
+  'Repasse Parceiros': 'repasse',
+  'Retirada Gilberto': 'gilberto',
+  'Pró-labore': 'prolabore',
+  'Variável': 'variavel',
 }
 
 function sortBlock(entries) {
@@ -100,14 +96,12 @@ function MonitorItem({ row, isLast, onSettle, onReverse }) {
         ${!isLast ? 'border-b border-border/60' : ''}
       `}
     >
-      {/* Checkbox */}
       <SettlementCheckbox
         isPaid={isPaid}
         onSettle={onSettle}
         onReverse={onReverse}
       />
 
-      {/* Descrição */}
       <span
         className={`flex-1 text-[13px] font-medium truncate transition-all duration-300 ${
           isPaid
@@ -119,7 +113,6 @@ function MonitorItem({ row, isLast, onSettle, onReverse }) {
         {formatDescription(row)}
       </span>
 
-      {/* Valor + Vencimento alinhados à direita */}
       <div className="flex items-center gap-3 shrink-0">
         <span
           className={`text-[13px] font-semibold tabular-nums transition-all duration-300 ${
@@ -155,7 +148,6 @@ function ExpenseColumn({ title, entries, onSettle, onReverse }) {
 
   return (
     <div className="bg-surface rounded-xl border border-border overflow-hidden flex flex-col">
-      {/* Header — apenas título + contagem */}
       <div className="px-3.5 pt-3 pb-2.5 border-b border-border">
         <div className="flex items-center justify-between">
           <h4 className="text-[11px] font-bold text-primary uppercase tracking-wider">
@@ -167,7 +159,6 @@ function ExpenseColumn({ title, entries, onSettle, onReverse }) {
         </div>
       </div>
 
-      {/* Lista de itens */}
       <div className="flex-1 overflow-y-auto">
         {sorted.length === 0 ? (
           <div className="px-3.5 py-6 text-center">
@@ -186,7 +177,6 @@ function ExpenseColumn({ title, entries, onSettle, onReverse }) {
         )}
       </div>
 
-      {/* Footer — somatórios Previsto + Efetivado */}
       <div className="px-3.5 py-3 border-t border-border/60">
         <div className="flex items-center justify-between">
           <div>
@@ -208,13 +198,16 @@ function ExpenseColumn({ title, entries, onSettle, onReverse }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Componente principal: ExpenseMonitor (layout 3 colunas)            */
+/*  Componente principal: ExpenseMonitor (layout 3×2)                  */
 /* ------------------------------------------------------------------ */
 
 export default function ExpenseMonitor({ expenses, onSettle, onReverse }) {
-  const fixas = expenses.filter(isDespesaFixa)
-  const parcelamentos = expenses.filter(isParcelamento)
-  const variaveis = expenses.filter(isDespesaVariavel)
+  const { classifyEntry } = useWorkspaceData()
+  const groups = { fixa: [], impostos: [], parcelamento: [], repasse: [], gilberto: [], prolabore: [], variavel: [] }
+  for (const e of expenses) {
+    const key = CLASSIFY_KEY_MAP[classifyEntry(e)] || 'variavel'
+    groups[key].push(e)
+  }
 
   const totalPrevisto = expenses.reduce((sum, e) => sum + Math.abs(e.amount), 0)
   const totalEfetivado = expenses
@@ -231,29 +224,51 @@ export default function ExpenseMonitor({ expenses, onSettle, onReverse }) {
 
   return (
     <div className="space-y-4">
-      {/* Grid de 3 colunas */}
       <div className="grid grid-cols-3 gap-4 items-start">
         <ExpenseColumn
-          title="Despesas Fixas"
-          entries={fixas}
+          title="Fixa"
+          entries={groups.fixa}
           onSettle={onSettle}
           onReverse={onReverse}
         />
         <ExpenseColumn
-          title="Parcelamentos"
-          entries={parcelamentos}
+          title="Impostos"
+          entries={groups.impostos}
           onSettle={onSettle}
           onReverse={onReverse}
         />
         <ExpenseColumn
-          title="Despesas Variáveis"
-          entries={variaveis}
+          title="Parcelamento"
+          entries={groups.parcelamento}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
+        <ExpenseColumn
+          title="Repasse Parceiros"
+          entries={groups.repasse}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
+        <ExpenseColumn
+          title="Pró-labore"
+          entries={groups.prolabore}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
+        <ExpenseColumn
+          title="Retirada Gilberto"
+          entries={groups.gilberto}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
+        <ExpenseColumn
+          title="Variável"
+          entries={groups.variavel}
           onSettle={onSettle}
           onReverse={onReverse}
         />
       </div>
 
-      {/* Rodapé geral */}
       <div className="flex items-center justify-end gap-6 px-1">
         <span className="text-[11px] text-text-muted">
           Total previsto{' '}

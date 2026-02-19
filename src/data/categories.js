@@ -30,6 +30,40 @@ export const categories = {
     { id: 'material-escritorio', label: 'Material de escritório' },
     { id: 'treinamentos-cursos', label: 'Treinamentos e cursos' },
     { id: 'repasse-parceiro', label: 'Repasse a parceiro' },
+    { id: 'financiamento-veiculo', label: 'Financiamento de veículo' },
+    { id: 'seguro-veiculo', label: 'Seguro de veículo' },
+    { id: 'tarifas-bancarias', label: 'Tarifas bancárias' },
+  ],
+}
+
+export const personalCategories = {
+  receita: [
+    { id: 'salario', label: 'Salário' },
+    { id: 'freelance', label: 'Freelance' },
+    { id: 'rendimentos', label: 'Rendimento de investimentos' },
+    { id: 'aluguel-recebido', label: 'Aluguel recebido' },
+    { id: 'bonus', label: 'Bônus / 13o' },
+    { id: 'outras-receitas-pessoal', label: 'Outras receitas' },
+  ],
+  despesa: [
+    { id: 'moradia', label: 'Moradia' },
+    { id: 'alimentacao', label: 'Alimentação' },
+    { id: 'transporte', label: 'Transporte' },
+    { id: 'saude', label: 'Saúde' },
+    { id: 'educacao', label: 'Educação' },
+    { id: 'lazer', label: 'Lazer e entretenimento' },
+    { id: 'vestuario', label: 'Vestuário' },
+    { id: 'assinaturas', label: 'Assinaturas e serviços' },
+    { id: 'seguros', label: 'Seguros' },
+    { id: 'impostos-pessoais', label: 'Impostos pessoais' },
+    { id: 'pets', label: 'Pets' },
+    { id: 'presentes', label: 'Presentes e doações' },
+    { id: 'cuidados-pessoais', label: 'Cuidados pessoais' },
+    { id: 'financiamento', label: 'Financiamento' },
+    { id: 'condominio', label: 'Condomínio' },
+    { id: 'energia-agua-gas', label: 'Energia / Água / Gás' },
+    { id: 'internet-telefone', label: 'Internet / Telefone' },
+    { id: 'outros-pessoal', label: 'Outros' },
   ],
 }
 
@@ -37,10 +71,26 @@ export const categories = {
 export const getCategoriesByType = (type) => categories[type] || []
 
 /**
- * Opções de recorrência para despesas.
+ * Opções de tipo para despesas (define o campo `recurrence`).
  * Exibidas apenas quando o tipo de lançamento é "despesa".
  */
-export const recurrenceOptions = [
+export const tipoOptions = [
   { id: 'fixa', label: 'Fixa' },
   { id: 'variavel', label: 'Variável' },
+  { id: 'parcelamento', label: 'Parcelamento' },
 ]
+
+/* ── Workspace-aware helpers ────────────────────────────────────── */
+
+export function getCategoriesForWorkspace(workspace) {
+  return workspace === 'pessoal' ? personalCategories : categories
+}
+
+export function getCategoriesByTypeForWorkspace(workspace, type) {
+  const cats = getCategoriesForWorkspace(workspace)
+  return cats[type] || []
+}
+
+export function getTipoOptionsForWorkspace(workspace) {
+  return tipoOptions
+}

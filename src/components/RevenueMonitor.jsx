@@ -1,4 +1,5 @@
 import { Check } from 'lucide-react'
+import { useWorkspaceData } from '../contexts/WorkspaceContext'
 
 /* ------------------------------------------------------------------ */
 /*  Formatação                                                         */
@@ -23,7 +24,7 @@ function formatDate(dateStr) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Ordenação por coluna                                               */
+/*  Ordenação                                                          */
 /* ------------------------------------------------------------------ */
 
 function sortBlock(entries) {
@@ -62,7 +63,7 @@ function SettlementCheckbox({ isPaid, onSettle, onReverse }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Linha compacta dentro de uma coluna                                */
+/*  Linha compacta                                                     */
 /* ------------------------------------------------------------------ */
 
 function MonitorItem({ row, isLast, onSettle, onReverse }) {
@@ -77,14 +78,12 @@ function MonitorItem({ row, isLast, onSettle, onReverse }) {
         ${!isLast ? 'border-b border-border/60' : ''}
       `}
     >
-      {/* Checkbox */}
       <SettlementCheckbox
         isPaid={isPaid}
         onSettle={onSettle}
         onReverse={onReverse}
       />
 
-      {/* Descrição */}
       <span
         className={`flex-1 text-[13px] font-medium truncate transition-all duration-300 ${
           isPaid
@@ -96,7 +95,6 @@ function MonitorItem({ row, isLast, onSettle, onReverse }) {
         {row.description}
       </span>
 
-      {/* Valor + Vencimento alinhados à direita */}
       <div className="flex items-center gap-3 shrink-0">
         <span
           className={`text-[13px] font-semibold tabular-nums transition-all duration-300 ${
@@ -120,7 +118,7 @@ function MonitorItem({ row, isLast, onSettle, onReverse }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Coluna individual (um captador)                                    */
+/*  Coluna individual (um tipo)                                        */
 /* ------------------------------------------------------------------ */
 
 function RevenueColumn({ title, entries, onSettle, onReverse }) {
@@ -132,7 +130,6 @@ function RevenueColumn({ title, entries, onSettle, onReverse }) {
 
   return (
     <div className="bg-surface rounded-xl border border-border overflow-hidden flex flex-col">
-      {/* Header — título + contagem */}
       <div className="px-3.5 pt-3 pb-2.5 border-b border-border">
         <div className="flex items-center justify-between">
           <h4 className="text-[11px] font-bold text-primary uppercase tracking-wider">
@@ -144,7 +141,6 @@ function RevenueColumn({ title, entries, onSettle, onReverse }) {
         </div>
       </div>
 
-      {/* Lista de itens */}
       <div className="flex-1 overflow-y-auto">
         {sorted.length === 0 ? (
           <div className="px-3.5 py-6 text-center">
@@ -163,7 +159,6 @@ function RevenueColumn({ title, entries, onSettle, onReverse }) {
         )}
       </div>
 
-      {/* Footer — somatórios Previsto + Efetivado */}
       <div className="px-3.5 py-3 border-t border-border/60">
         <div className="flex items-center justify-between">
           <div>
@@ -185,16 +180,33 @@ function RevenueColumn({ title, entries, onSettle, onReverse }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Componente principal: RevenueMonitor (layout 3 colunas)            */
+/*  Chaves internas para agrupamento                                   */
 /* ------------------------------------------------------------------ */
 
-const CAPTADORES = [
-  { id: 'lenon', label: 'Lenon' },
-  { id: 'gilberto', label: 'Gilberto' },
-  { id: 'berna', label: 'Berna' },
-]
+const CLASSIFY_KEY_MAP = {
+  'Honorários Lenon': 'honLenon',
+  'Honorários Gilberto': 'honGilberto',
+  'Empréstimo': 'emprestimo',
+  'Aporte de Sócio': 'aporte',
+  'Impostos Gilberto': 'impostosGilberto',
+  'Outras Receitas': 'outras',
+}
+
+/* ------------------------------------------------------------------ */
+/*  Componente principal: RevenueMonitor (layout 3×2)                  */
+/* ------------------------------------------------------------------ */
 
 export default function RevenueMonitor({ revenues, onSettle, onReverse }) {
+  const { classifyReceita } = useWorkspaceData()
+  const groups = {
+    honLenon: [], honGilberto: [], emprestimo: [],
+    aporte: [], impostosGilberto: [], outras: [],
+  }
+  for (const e of revenues) {
+    const key = CLASSIFY_KEY_MAP[classifyReceita(e)] || 'outras'
+    groups[key].push(e)
+  }
+
   const totalPrevisto = revenues.reduce((sum, e) => sum + Math.abs(e.amount), 0)
   const totalEfetivado = revenues
     .filter((e) => e.status === 'pago')
@@ -210,20 +222,45 @@ export default function RevenueMonitor({ revenues, onSettle, onReverse }) {
 
   return (
     <div className="space-y-4">
-      {/* Grid de 3 colunas */}
       <div className="grid grid-cols-3 gap-4 items-start">
-        {CAPTADORES.map((cap) => (
-          <RevenueColumn
-            key={cap.id}
-            title={cap.label}
-            entries={revenues.filter((e) => e.captador === cap.id)}
-            onSettle={onSettle}
-            onReverse={onReverse}
-          />
-        ))}
+        <RevenueColumn
+          title="Honorários Lenon"
+          entries={groups.honLenon}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
+        <RevenueColumn
+          title="Honorários Gilberto"
+          entries={groups.honGilberto}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
+        <RevenueColumn
+          title="Empréstimo"
+          entries={groups.emprestimo}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
+        <RevenueColumn
+          title="Aporte de Sócio"
+          entries={groups.aporte}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
+        <RevenueColumn
+          title="Impostos Gilberto"
+          entries={groups.impostosGilberto}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
+        <RevenueColumn
+          title="Outras Receitas"
+          entries={groups.outras}
+          onSettle={onSettle}
+          onReverse={onReverse}
+        />
       </div>
 
-      {/* Rodapé geral */}
       <div className="flex items-center justify-end gap-6 px-1">
         <span className="text-[11px] text-text-muted">
           Total previsto{' '}

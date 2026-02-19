@@ -23,6 +23,11 @@
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
 }
 
+[data-workspace="pessoal"] {
+  --color-primary: #1e3a5f;
+  --color-primary-light: #2a4d7a;
+}
+
 @layer base {
   body {
     @apply bg-offwhite text-text-primary antialiased;

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, ChevronDown } from 'lucide-react'
-import { accounts, getGroupedAccountsForUser } from '../data/accounts'
-import { getCategoriesByType, recurrenceOptions } from '../data/categories'
+import { useWorkspaceData } from '../contexts/WorkspaceContext'
 
 /* ------------------------------------------------------------------ */
 /*  Constantes                                                         */
@@ -253,7 +252,7 @@ function TabClassificacao({ form, setField, currentUser, entryType, isEditing })
         ))}
       </Select>
 
-      {/* Linha: Categoria + Recorrência (despesa) OU Categoria + Captador (receita) */}
+      {/* Linha: Categoria + Tipo (despesa) OU Categoria + Captador (receita) */}
       {isDespesa && (
         <div className="grid grid-cols-2 gap-3">
           <Select
@@ -265,9 +264,9 @@ function TabClassificacao({ form, setField, currentUser, entryType, isEditing })
             {availableCategories.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
           </Select>
           <div>
-            <label className={labelCls}>Recorrência</label>
+            <label className={labelCls}>Tipo</label>
             <div className="flex gap-1.5">
-              {recurrenceOptions.map((opt) => (
+              {tipoOptions.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
@@ -488,6 +487,7 @@ function TabParcelamento({ form, installmentForm, setInstallmentField, installme
 /* ------------------------------------------------------------------ */
 
 export default function Modal({ isOpen, onClose, onSave, currentUser, editingEntry = null, entryType = 'despesa' }) {
+  const { accounts, getGroupedAccountsForUser, getCategoriesByType, tipoOptions } = useWorkspaceData()
   const [form, setForm] = useState(INITIAL_STATE)
   const [installmentForm, setInstallmentForm] = useState(INITIAL_INSTALLMENT)
   const [installments, setInstallments] = useState([])
@@ -508,7 +508,7 @@ export default function Modal({ isOpen, onClose, onSave, currentUser, editingEnt
         const absAmount = Math.abs(editingEntry.amount)
         setForm({
           accountId: editingEntry.accountId || '',
-          recurrence: editingEntry.recurrence === 'Fixa' ? 'fixa' : editingEntry.recurrence === 'Variável' ? 'variavel' : '',
+          recurrence: editingEntry.recurrence === 'Fixa' || editingEntry.recurrence === 'Fixa/Anual' ? 'fixa' : editingEntry.recurrence === 'Variável' ? 'variavel' : editingEntry.recurrence === 'Parcelamento' ? 'parcelamento' : '',
           categoryId: editingEntry.categoryId || '',
           captador: editingEntry.captador || '',
           description: editingEntry.description || '',
@@ -584,7 +584,7 @@ export default function Modal({ isOpen, onClose, onSave, currentUser, editingEnt
         settlementDate: form.settlementDate || '',
         type: capitalizeFirst(type),
         status: form.status,
-        recurrence: isDespesa ? capitalizeFirst(form.recurrence) : '—',
+        recurrence: isDespesa ? capitalizeFirst(form.recurrence) : 'Variável',
         accountId: form.accountId,
         categoryId: form.categoryId,
         captador: isReceita ? form.captador : '',

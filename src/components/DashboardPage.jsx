@@ -10,8 +10,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   BarChart, Bar, ReferenceLine,
 } from 'recharts'
-import { accounts } from '../data/accounts'
-import { categories } from '../data/categories'
+import { useWorkspaceData } from '../contexts/WorkspaceContext'
 
 /* ------------------------------------------------------------------ */
 /*  Constantes                                                         */
@@ -57,7 +56,24 @@ const RESERVA_ACCOUNT_ID = 'reserva-emergencia'
 
 /** Cores */
 const OWNER_COLORS = { lenon: '#004D4A', berna: '#C4D600' }
-const TYPE_COLORS = { Fixa: '#223631', Variável: '#9b9b9b', Parcelamento: '#6b6b6b' }
+const TYPE_COLORS = {
+  'Fixa': '#223631',
+  'Impostos': '#B45309',
+  'Parcelamento': '#6b6b6b',
+  'Repasse Parceiros': '#0369A1',
+  'Pró-labore': '#0E7490',
+  'Retirada Gilberto': '#7C3AED',
+  'Variável': '#9b9b9b',
+}
+
+const RECEITA_COLORS = {
+  'Honorários Lenon': '#004D4A',
+  'Honorários Gilberto': '#7C3AED',
+  'Empréstimo': '#0369A1',
+  'Aporte de Sócio': '#2D6A4F',
+  'Impostos Gilberto': '#B45309',
+  'Outras Receitas': '#9b9b9b',
+}
 const CATEGORY_LABEL_MAP = Object.fromEntries(
   [...categories.despesa, ...categories.receita].map((c) => [c.id, c.label]),
 )
@@ -80,6 +96,7 @@ const CATEGORY_COLORS = {
   'material-escritorio': '#588157',
   'treinamentos-cursos': '#A3B18A',
   'repasse-parceiro': '#DAD7CD',
+  'financiamento-veiculo': '#8B5E3C',
 }
 
 const ANNUAL_INCOME_COLOR = '#166534'
@@ -132,11 +149,52 @@ function computeMetrics(entries) {
   }
 }
 
+/**
+ * Expande entries que são faturas de cartão (isInvoice) nos seus itens individuais,
+ * para que cada item contribua com seu próprio tipo/categoria nos gráficos.
+ */
+function expandInvoiceEntries(entries, invoiceData) {
+  if (!invoiceData || Object.keys(invoiceData).length === 0) return entries
+
+  const RECURRENCE_TO_TYPE = {
+    'Fixa': 'Fixa', 'Fixa/Anual': 'Fixa/Anual', 'Parcelamento': 'Parcelamento', 'Variável': 'Variável',
+    'Mensal': 'Fixa', 'Anual': 'Fixa/Anual', 'unico': 'Variável', 'fixo': 'Fixa', 'parcelado': 'Parcelamento',
+  }
+
+  const result = []
+  for (const e of entries) {
+    if (!e.isInvoice || !e.invoiceId) {
+      result.push(e)
+      continue
+    }
+    const inv = invoiceData[e.invoiceId]
+    if (!inv?.items?.length) {
+      result.push(e)
+      continue
+    }
+    for (const item of inv.items) {
+      if ((item.monthOffset || 0) !== 0) continue
+      const isRevenue = item.type === 'receita'
+      result.push({
+        ...e,
+        isInvoice: false,
+        description: item.description,
+        categoryId: item.category || item.categoryId || e.categoryId,
+        recurrence: RECURRENCE_TO_TYPE[item.recurrence] || 'Variável',
+        amount: isRevenue ? item.amount : -Math.abs(item.amount),
+        type: isRevenue ? 'Receita' : 'Despesa',
+        _fromInvoice: true,
+      })
+    }
+  }
+  return result
+}
+
 function computeExpensesByType(entries) {
   const map = {}
   for (const e of entries) {
     if (e.type !== 'Despesa') continue
-    const key = e.recurrence === 'Fatura' ? 'Variável' : (e.recurrence || 'Variável')
+    const key = classifyEntry(e)
     map[key] = (map[key] || 0) + Math.abs(e.amount)
   }
   return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
@@ -521,10 +579,41 @@ function OverviewTab({ m }) {
   )
 }
 
-function ExpensesTab({ monthEntries }) {
-  const byType = useMemo(() => computeExpensesByType(monthEntries), [monthEntries])
-  const byOwner = useMemo(() => computeExpensesByOwner(monthEntries), [monthEntries])
-  const byCategory = useMemo(() => computeExpensesByCategory(monthEntries), [monthEntries])
+function ExpenseViewToggle({ view, onChange }) {
+  return (
+    <div className="inline-flex items-center rounded-lg border border-border bg-offwhite p-0.5">
+      {['previsto', 'efetivado'].map((v) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          className={`
+            px-3 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider
+            transition-colors duration-150 cursor-pointer
+            ${view === v
+              ? 'bg-primary text-white shadow-sm'
+              : 'text-text-muted hover:text-text-secondary'
+            }
+          `}
+        >
+          {v === 'previsto' ? 'Previsto' : 'Efetivado'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ExpensesTab({ monthEntries, invoiceData }) {
+  const [expenseView, setExpenseView] = useState('previsto')
+  const expanded = useMemo(() => expandInvoiceEntries(monthEntries, invoiceData), [monthEntries, invoiceData])
+  const filtered = useMemo(
+    () => expenseView === 'efetivado' ? expanded.filter((e) => e.status === 'pago') : expanded,
+    [expanded, expenseView],
+  )
+
+  const byType = useMemo(() => computeExpensesByType(filtered), [filtered])
+  const byOwner = useMemo(() => computeExpensesByOwner(filtered), [filtered])
+  const byCategory = useMemo(() => computeExpensesByCategory(filtered), [filtered])
   const totalByType = byType.reduce((s, d) => s + d.value, 0)
   const totalByOwner = byOwner.reduce((s, d) => s + d.value, 0)
   const totalByCategory = byCategory.reduce((s, d) => s + d.value, 0)
@@ -542,7 +631,7 @@ function ExpensesTab({ monthEntries }) {
     ownerColorMapLabeled[ownerLabelMap[key] || key] = color
   }
 
-  if (totalByType === 0) {
+  if (monthEntries.filter((e) => e.type === 'Despesa').length === 0) {
     return (
       <div className="flex items-center justify-center h-64 bg-surface rounded-xl border border-border">
         <p className="text-[12px] text-text-muted">Nenhuma despesa registrada neste período.</p>
@@ -553,18 +642,26 @@ function ExpensesTab({ monthEntries }) {
   return (
     <div className="space-y-4">
       <div className="bg-surface rounded-xl border border-border px-5 py-4">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <div>
             <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">Total de despesas</h3>
-            <p className="text-[10px] text-text-muted mt-0.5">Soma de todas as saídas no período</p>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              {expenseView === 'previsto' ? 'Soma de todas as saídas previstas' : 'Soma das saídas efetivamente pagas'}
+            </p>
           </div>
-          <p className="text-lg font-semibold tabular-nums text-value-expense">{formatCurrency(totalByType)}</p>
+          <div className="flex items-center gap-4">
+            <ExpenseViewToggle view={expenseView} onChange={setExpenseView} />
+            <p className="text-lg font-semibold tabular-nums text-value-expense">{formatCurrency(totalByType)}</p>
+          </div>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-surface rounded-xl border border-border px-5 py-4">
           <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Por Tipo</h3>
-          <p className="text-[10px] text-text-muted mb-4">Fixa vs Variável vs Parcelamento</p>
+          <p className="text-[10px] text-text-muted mb-4">Distribuição por tipo de despesa</p>
+          {totalByType === 0 ? (
+            <p className="text-[11px] text-text-muted py-6 text-center">Nenhuma despesa {expenseView === 'efetivado' ? 'efetivada' : ''} neste período.</p>
+          ) : (
           <div className="flex items-center gap-6">
             <div className="w-[120px] h-[120px] shrink-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -578,6 +675,7 @@ function ExpensesTab({ monthEntries }) {
             </div>
             <div className="flex-1 min-w-0"><ChartLegend data={byType} colorMap={TYPE_COLORS} total={totalByType} /></div>
           </div>
+          )}
         </div>
         <div className="bg-surface rounded-xl border border-border px-5 py-4">
           <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Por Responsável</h3>
@@ -621,12 +719,85 @@ function ExpensesTab({ monthEntries }) {
   )
 }
 
-function RevenueTab() {
+function computeRevenuesByType(entries) {
+  const map = {}
+  for (const e of entries) {
+    if (e.type !== 'Receita') continue
+    const key = classifyReceita(e)
+    map[key] = (map[key] || 0) + Math.abs(e.amount)
+  }
+  return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+}
+
+function RevenueTab({ monthEntries }) {
+  const [revenueView, setRevenueView] = useState('previsto')
+
+  const revenueEntries = useMemo(
+    () => monthEntries.filter((e) => e.type === 'Receita'),
+    [monthEntries],
+  )
+
+  const filtered = useMemo(
+    () => revenueView === 'efetivado' ? revenueEntries.filter((e) => e.status === 'pago') : revenueEntries,
+    [revenueEntries, revenueView],
+  )
+
+  const byType = useMemo(() => computeRevenuesByType(filtered), [filtered])
+  const totalByType = byType.reduce((s, d) => s + d.value, 0)
+
+  const totalPrevisto = revenueEntries.reduce((s, e) => s + Math.abs(e.amount), 0)
+  const totalEfetivado = revenueEntries.filter((e) => e.status === 'pago').reduce((s, e) => s + Math.abs(e.amount), 0)
+
+  if (revenueEntries.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 bg-surface rounded-xl border border-border">
+        <p className="text-[12px] text-text-muted">Nenhuma receita neste período.</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex items-center justify-center h-64 bg-surface rounded-xl border border-border">
-      <div className="text-center">
-        <TrendingUp size={24} className="text-text-muted mx-auto mb-2" strokeWidth={1.5} />
-        <p className="text-[12px] text-text-muted">Detalhamento de receitas em breve.</p>
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-surface rounded-xl border border-border px-5 py-3.5">
+          <p className="text-[10px] font-medium text-text-muted uppercase tracking-wider mb-1">Receita prevista</p>
+          <p className="text-[15px] font-semibold tabular-nums text-value-income">{formatCurrency(totalPrevisto)}</p>
+        </div>
+        <div className="bg-surface rounded-xl border border-border px-5 py-3.5">
+          <p className="text-[10px] font-medium text-text-muted uppercase tracking-wider mb-1">Receita efetivada</p>
+          <p className="text-[15px] font-semibold tabular-nums text-value-income">{formatCurrency(totalEfetivado)}</p>
+        </div>
+        <div className="bg-surface rounded-xl border border-border px-5 py-3.5">
+          <p className="text-[10px] font-medium text-text-muted uppercase tracking-wider mb-1">A receber</p>
+          <p className="text-[15px] font-semibold tabular-nums text-text-primary">{formatCurrency(totalPrevisto - totalEfetivado)}</p>
+        </div>
+      </div>
+
+      <div className="bg-surface rounded-xl border border-border px-5 py-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Por Tipo</h3>
+            <p className="text-[10px] text-text-muted">Distribuição por tipo de receita</p>
+          </div>
+          <ExpenseViewToggle view={revenueView} onChange={setRevenueView} />
+        </div>
+        {totalByType === 0 ? (
+          <p className="text-[11px] text-text-muted py-6 text-center">Nenhuma receita {revenueView === 'efetivado' ? 'efetivada' : ''} neste período.</p>
+        ) : (
+          <div className="flex items-center gap-6">
+            <div className="w-[120px] h-[120px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={byType} cx="50%" cy="50%" innerRadius={36} outerRadius={54} paddingAngle={2} dataKey="value" stroke="none">
+                    {byType.map((entry) => <Cell key={entry.name} fill={RECEITA_COLORS[entry.name] || '#9b9b9b'} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 min-w-0"><ChartLegend data={byType} colorMap={RECEITA_COLORS} total={totalByType} /></div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -643,217 +814,13 @@ function RevenueTab() {
  *   periodLabel   — ex: "Mensal" ou "Anual"
  *   periodHint    — ex: "fevereiro de 2026" ou "2026"
  */
-function BreakevenTab({ periodEntries, periodLabel, periodHint }) {
-  // Cálculo dinâmico
-  const data = useMemo(() => {
-    let totalExpenses = 0
-    let incomeSettled = 0
-
-    for (const e of periodEntries) {
-      if (e.type === 'Receita') {
-        if (e.status === 'pago') incomeSettled += e.amount
-      } else {
-        totalExpenses += Math.abs(e.amount)
-      }
-    }
-
-    const gap = incomeSettled - totalExpenses
-    return { breakeven: totalExpenses, incomeSettled, gap }
-  }, [periodEntries])
-
-  const { breakeven, incomeSettled, gap } = data
-  const reached = gap >= 0
-  const pct = breakeven > 0 ? (incomeSettled / breakeven) * 100 : 0
-  const pctClamped = Math.min(pct, 100)
-
-  // Dados para o gráfico comparativo
-  const chartData = [
-    { name: 'Custo Total', value: breakeven },
-    { name: 'Receita Realizada', value: incomeSettled },
-  ]
-
-  if (breakeven === 0 && incomeSettled === 0) {
-    return (
-      <div className="space-y-4">
-        <div>
-          <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-            Ponto de Equilíbrio {periodLabel}
-          </h3>
-          <p className="text-[10px] text-text-muted mt-0.5">
-            Análise de neutralidade financeira do período
-          </p>
-        </div>
-        <div className="flex items-center justify-center h-64 bg-surface rounded-xl border border-border">
-          <p className="text-[12px] text-text-muted">
-            Nenhum lançamento registrado para {periodHint}.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
+function BreakevenTab() {
   return (
-    <div className="space-y-5">
-      {/* Cabeçalho */}
-      <div>
-        <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-          Ponto de Equilíbrio {periodLabel}
-        </h3>
-        <p className="text-[10px] text-text-muted mt-0.5">
-          Faturamento mínimo necessário para cobrir todas as despesas de {periodHint}
-        </p>
-      </div>
-
-      {/* Indicadores de Topo */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-surface rounded-xl border border-border px-5 py-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Crosshair size={13} strokeWidth={1.8} style={{ color: BREAKEVEN_COLOR }} className="shrink-0" />
-            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: BREAKEVEN_COLOR }}>
-              Ponto de Equilíbrio
-            </p>
-          </div>
-          <p className="text-[10px] text-text-muted mb-2.5">
-            Soma de todas as despesas previstas no período
-          </p>
-          <p className="text-lg font-semibold tabular-nums" style={{ color: BREAKEVEN_COLOR }}>
-            {formatCurrency(breakeven)}
-          </p>
-        </div>
-
-        <div className="bg-surface rounded-xl border border-border px-5 py-4">
-          <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
-            Efetivado até o Momento
-          </p>
-          <p className="text-[10px] text-text-muted mb-2.5">
-            Total de receitas confirmadas e liquidadas
-          </p>
-          <p className="text-lg font-semibold tabular-nums text-value-income">
-            {formatCurrency(incomeSettled)}
-          </p>
-        </div>
-
-        <div className="bg-surface rounded-xl border border-border px-5 py-4">
-          <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
-            Gap de Neutralidade
-          </p>
-          <p className="text-[10px] text-text-muted mb-2.5">
-            {reached
-              ? 'Excedente acumulado — zona de lucratividade'
-              : 'Valor restante para atingir o equilíbrio'
-            }
-          </p>
-          <p className={`text-lg font-semibold tabular-nums ${reached ? 'text-value-income' : 'text-value-expense'}`}>
-            {reached ? '+' : '-'}{formatCurrency(Math.abs(gap))}
-          </p>
-        </div>
-      </div>
-
-      {/* Barra de Progresso de Equilíbrio */}
-      <div className="bg-surface rounded-xl border border-border px-5 py-5">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-              Progresso rumo ao equilíbrio
-            </h4>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Percentual da receita efetivada em relação ao custo total do período
-            </p>
-          </div>
-          <span className={`text-sm font-semibold tabular-nums ${reached ? 'text-value-income' : ''}`} style={!reached ? { color: BREAKEVEN_COLOR } : {}}>
-            {pct.toFixed(1)}%
-          </span>
-        </div>
-
-        {/* Barra larga */}
-        <div className="relative h-4 rounded-full bg-offwhite overflow-hidden">
-          {!reached ? (
-            <>
-              {/* Preenchimento até o percentual atingido */}
-              <div
-                className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
-                style={{ width: `${pctClamped}%`, backgroundColor: BREAKEVEN_COLOR }}
-              />
-              {/* Restante em vermelho sóbrio */}
-              <div
-                className="absolute inset-y-0 right-0 rounded-r-full transition-all duration-700 ease-out"
-                style={{ width: `${100 - pctClamped}%`, backgroundColor: '#991b1b', opacity: 0.12 }}
-              />
-            </>
-          ) : (
-            /* Acima de 100%: barra cheia verde */
-            <div
-              className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
-              style={{ width: '100%', backgroundColor: ANNUAL_INCOME_COLOR }}
-            />
-          )}
-        </div>
-
-        {/* Labels da barra */}
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-[10px] text-text-muted">
-            Efetivado: <span className="font-medium text-text-primary tabular-nums">{formatCurrency(incomeSettled)}</span>
-          </span>
-          {reached ? (
-            <span className="text-[10px] font-medium text-value-income tabular-nums">
-              Equilíbrio atingido — excedente de {formatCurrency(gap)}
-            </span>
-          ) : (
-            <span className="text-[10px] text-text-muted tabular-nums">
-              Faltam <span className="font-medium text-value-expense">{formatCurrency(Math.abs(gap))}</span>
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Gráfico de Comparação */}
-      <div className="bg-surface rounded-xl border border-border px-5 py-5">
-        <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">
-          Custo Total vs Receita Realizada
-        </h4>
-        <p className="text-[10px] text-text-muted mb-4">
-          Comparativo direto entre despesas acumuladas e receitas confirmadas
-        </p>
-        <div className="h-36">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }} barCategoryGap="35%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e8e8e4" horizontal={false} />
-              <XAxis
-                type="number" axisLine={false} tickLine={false}
-                tick={{ fontSize: 10, fill: '#9b9b9b' }}
-                tickFormatter={(v) => formatCurrencyCompact(v)}
-              />
-              <YAxis
-                type="category" dataKey="name" axisLine={false} tickLine={false}
-                tick={{ fontSize: 11, fill: '#6b6b6b', fontWeight: 500 }}
-                width={130}
-              />
-              <Tooltip
-                formatter={(value) => [formatCurrency(value), '']}
-                contentStyle={{
-                  backgroundColor: '#fafaf7',
-                  border: '1px solid #e8e8e4',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                }}
-              />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={32}>
-                <Cell fill={BREAKEVEN_COLOR} />
-                <Cell fill={ANNUAL_INCOME_COLOR} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="flex items-center justify-center gap-8 mt-3 pt-3 border-t border-border">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: BREAKEVEN_COLOR }} />
-            <span className="text-[10px] text-text-secondary">Custo Total (Ponto de Equilíbrio)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: ANNUAL_INCOME_COLOR }} />
-            <span className="text-[10px] text-text-secondary">Receita Realizada</span>
-          </div>
-        </div>
+    <div className="flex items-center justify-center h-64 bg-surface rounded-xl border border-border">
+      <div className="text-center">
+        <Crosshair size={24} className="text-text-muted mx-auto mb-2" strokeWidth={1.5} />
+        <p className="text-[12px] font-medium text-text-muted">Ponto de equilíbrio</p>
+        <p className="text-[11px] text-text-muted/70 mt-1">Em desenvolvimento</p>
       </div>
     </div>
   )
@@ -873,6 +840,8 @@ function BreakevenTab({ periodEntries, periodLabel, periodHint }) {
  *   mode          — 'mensal' | 'anual'
  */
 function ReservaTab({ allEntries, periodEntries, periodLabel, periodHint, mode }) {
+  const [reservaSubTab, setReservaSubTab] = useState('completa') // 'completa' | 'fixas'
+
   const data = useMemo(() => {
     // 1. Saldo atual da reserva: soma de todos os aportes efetivados (qualquer período)
     let saldoAtual = 0
@@ -885,17 +854,34 @@ function ReservaTab({ allEntries, periodEntries, periodLabel, periodHint, mode }
     // 2. Ponto de equilíbrio médio mensal (últimos 12 meses ou dados disponíveis)
     const now = new Date()
     const monthlyExpenses = {}
+    const monthlyFixed = {}
+
     for (const e of allEntries) {
       if (!e.dueDate) continue
       if (e.type === 'Reserva') continue
       if (e.type === 'Receita') continue
+      
       const d = new Date(e.dueDate + 'T12:00:00')
       const key = `${d.getFullYear()}-${d.getMonth()}`
+      
+      // Geral (Ponto de Equilíbrio)
       monthlyExpenses[key] = (monthlyExpenses[key] || 0) + Math.abs(e.amount)
+      
+      // Apenas Fixas e Parcelamento (Reservas Fixas)
+      const tipo = classifyEntry(e)
+      if (tipo === 'Fixa' || tipo === 'Parcelamento') {
+        monthlyFixed[key] = (monthlyFixed[key] || 0) + Math.abs(e.amount)
+      }
     }
+    
     const months = Object.values(monthlyExpenses)
     const avgMonthlyExpense = months.length > 0
       ? months.reduce((s, v) => s + v, 0) / months.length
+      : 0
+
+    const fixedMonths = Object.values(monthlyFixed)
+    const avgFixedExpense = fixedMonths.length > 0
+      ? fixedMonths.reduce((s, v) => s + v, 0) / fixedMonths.length
       : 0
 
     // 3. Meta de reserva: 6x o ponto de equilíbrio médio mensal
@@ -919,6 +905,7 @@ function ReservaTab({ allEntries, periodEntries, periodLabel, periodHint, mode }
       saldoAtual,
       metaReserva,
       avgMonthlyExpense,
+      avgFixedExpense,
       indiceSobrevivencia,
       aportesPeriodo,
       aportesPrevistos,
@@ -926,7 +913,7 @@ function ReservaTab({ allEntries, periodEntries, periodLabel, periodHint, mode }
   }, [allEntries, periodEntries])
 
   const {
-    saldoAtual, metaReserva, avgMonthlyExpense,
+    saldoAtual, metaReserva, avgMonthlyExpense, avgFixedExpense,
     indiceSobrevivencia, aportesPeriodo, aportesPrevistos,
   } = data
 
@@ -942,185 +929,301 @@ function ReservaTab({ allEntries, periodEntries, periodLabel, periodHint, mode }
   return (
     <div className="space-y-5">
       {/* Cabeçalho */}
-      <div>
-        <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-          Reserva de Emergência
-        </h3>
-        <p className="text-[10px] text-text-muted mt-0.5">
-          {mode === 'mensal'
-            ? `Acompanhamento do aporte e evolução patrimonial em ${periodHint}`
-            : `Análise do crescimento do patrimônio de segurança em ${periodHint}`
-          }
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+            Reserva de Emergência
+          </h3>
+          <p className="text-[10px] text-text-muted mt-0.5">
+            {mode === 'mensal'
+              ? `Acompanhamento do aporte e evolução patrimonial em ${periodHint}`
+              : `Análise do crescimento do patrimônio de segurança em ${periodHint}`
+            }
+          </p>
+        </div>
+
+        {/* Seletor de sub-aba */}
+        <div className="flex items-center gap-1.5 p-1 rounded-xl border border-border bg-offwhite">
+          {[
+            { id: 'completa', label: 'Reserva Completa', icon: ShieldCheck },
+            { id: 'fixas', label: 'Reservas Fixas', icon: Layers },
+          ].map((tab) => {
+            const isActive = tab.id === reservaSubTab
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setReservaSubTab(tab.id)}
+                className={`
+                  flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider
+                  transition-all duration-200 cursor-pointer
+                  ${isActive
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'text-text-muted hover:text-text-secondary'
+                  }
+                `}
+              >
+                <tab.icon size={13} strokeWidth={2} />
+                <span>{tab.label}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      {/* Card de destaque — Índice de Sobrevivência */}
-      <div className="bg-surface rounded-xl border border-border px-6 py-5">
-        <div className="flex items-center gap-3 mb-3">
-          <ShieldCheck size={18} strokeWidth={1.8} style={{ color: BREAKEVEN_COLOR }} className="shrink-0" />
-          <div>
-            <h4 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: BREAKEVEN_COLOR }}>
-              Índice de Sobrevivência
-            </h4>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Tempo estimado de autonomia financeira sem novas receitas
+      {reservaSubTab === 'completa' ? (
+        <>
+          {/* Card de destaque — Índice de Sobrevivência */}
+          <div className="bg-surface rounded-xl border border-border px-6 py-5">
+            <div className="flex items-center gap-3 mb-3">
+              <ShieldCheck size={18} strokeWidth={1.8} style={{ color: BREAKEVEN_COLOR }} className="shrink-0" />
+              <div>
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: BREAKEVEN_COLOR }}>
+                  Índice de Sobrevivência
+                </h4>
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Tempo estimado de autonomia financeira sem novas receitas
+                </p>
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="text-3xl font-bold tabular-nums" style={{ color: BREAKEVEN_COLOR }}>
+                {indiceSobrevivencia.toFixed(1)}
+              </span>
+              <span className="text-sm font-medium text-text-muted">
+                {indiceSobrevivencia === 1 ? 'Mês de Cobertura' : 'Meses de Cobertura'}
+              </span>
+            </div>
+            <p className="text-[10px] text-text-muted">
+              Ponto de equilíbrio médio mensal: <span className="font-medium text-text-primary tabular-nums">{formatCurrency(avgMonthlyExpense)}</span>
             </p>
           </div>
-        </div>
-        <div className="flex items-baseline gap-2 mb-1">
-          <span className="text-3xl font-bold tabular-nums" style={{ color: BREAKEVEN_COLOR }}>
-            {indiceSobrevivencia.toFixed(1)}
-          </span>
-          <span className="text-sm font-medium text-text-muted">
-            {indiceSobrevivencia === 1 ? 'Mês de Cobertura' : 'Meses de Cobertura'}
-          </span>
-        </div>
-        <p className="text-[10px] text-text-muted">
-          Ponto de equilíbrio médio mensal: <span className="font-medium text-text-primary tabular-nums">{formatCurrency(avgMonthlyExpense)}</span>
-        </p>
-      </div>
 
-      {/* Indicadores numéricos */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-surface rounded-xl border border-border px-5 py-4">
-          <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
-            Meta de Reserva
-          </p>
-          <p className="text-[10px] text-text-muted mb-2.5">
-            Capital necessário para 6 meses de operação
-          </p>
-          <p className="text-lg font-semibold tabular-nums" style={{ color: BREAKEVEN_COLOR }}>
-            {formatCurrency(metaReserva)}
-          </p>
-        </div>
+          {/* Indicadores numéricos */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-surface rounded-xl border border-border px-5 py-4">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
+                Meta de Reserva
+              </p>
+              <p className="text-[10px] text-text-muted mb-2.5">
+                Capital necessário para 6 meses de operação
+              </p>
+              <p className="text-lg font-semibold tabular-nums" style={{ color: BREAKEVEN_COLOR }}>
+                {formatCurrency(metaReserva)}
+              </p>
+            </div>
 
-        <div className="bg-surface rounded-xl border border-border px-5 py-4">
-          <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
-            Saldo Atual
-          </p>
-          <p className="text-[10px] text-text-muted mb-2.5">
-            Patrimônio acumulado na conta de reserva
-          </p>
-          <p className={`text-lg font-semibold tabular-nums ${metaAtingida ? 'text-value-income' : ''}`}
-             style={!metaAtingida ? { color: BREAKEVEN_COLOR } : {}}>
-            {formatCurrency(saldoAtual)}
-          </p>
-        </div>
+            <div className="bg-surface rounded-xl border border-border px-5 py-4">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
+                Saldo Atual
+              </p>
+              <p className="text-[10px] text-text-muted mb-2.5">
+                Patrimônio acumulado na conta de reserva
+              </p>
+              <p className={`text-lg font-semibold tabular-nums ${metaAtingida ? 'text-value-income' : ''}`}
+                 style={!metaAtingida ? { color: BREAKEVEN_COLOR } : {}}>
+                {formatCurrency(saldoAtual)}
+              </p>
+            </div>
 
-        <div className="bg-surface rounded-xl border border-border px-5 py-4">
-          <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
-            {mode === 'mensal' ? 'Aporte do Mês' : 'Aportes do Ano'}
-          </p>
-          <p className="text-[10px] text-text-muted mb-2.5">
-            {aportesPeriodo > 0 ? 'Efetivado no período selecionado' : 'Previsto para o período selecionado'}
-          </p>
-          <p className="text-lg font-semibold tabular-nums text-value-income">
-            {formatCurrency(aportesPeriodo > 0 ? aportesPeriodo : aportesPrevistos)}
-          </p>
-          {aportesPeriodo > 0 && aportesPrevistos > 0 && (
-            <p className="text-[10px] text-text-muted mt-1 tabular-nums">
-              + {formatCurrency(aportesPrevistos)} previstos
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Barra de progresso — Meta de Reserva */}
-      <div className="bg-surface rounded-xl border border-border px-5 py-5">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-              Progresso rumo à meta
-            </h4>
-            <p className="text-[10px] text-text-muted mt-0.5">
-              Capital necessário para 6 meses de operação
-            </p>
+            <div className="bg-surface rounded-xl border border-border px-5 py-4">
+              <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
+                {mode === 'mensal' ? 'Aporte do Mês' : 'Aportes do Ano'}
+              </p>
+              <p className="text-[10px] text-text-muted mb-2.5">
+                {aportesPeriodo > 0 ? 'Efetivado no período selecionado' : 'Previsto para o período selecionado'}
+              </p>
+              <p className="text-lg font-semibold tabular-nums text-value-income">
+                {formatCurrency(aportesPeriodo > 0 ? aportesPeriodo : aportesPrevistos)}
+              </p>
+              {aportesPeriodo > 0 && aportesPrevistos > 0 && (
+                <p className="text-[10px] text-text-muted mt-1 tabular-nums">
+                  + {formatCurrency(aportesPrevistos)} previstos
+                </p>
+              )}
+            </div>
           </div>
-          <span className={`text-sm font-semibold tabular-nums ${metaAtingida ? 'text-value-income' : ''}`}
-                style={!metaAtingida ? { color: BREAKEVEN_COLOR } : {}}>
-            {pctMeta.toFixed(1)}%
-          </span>
-        </div>
 
-        {/* Barra */}
-        <div className="relative h-4 rounded-full bg-offwhite overflow-hidden">
-          <div
-            className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
-            style={{
-              width: `${pctMeta}%`,
-              backgroundColor: metaAtingida ? ANNUAL_INCOME_COLOR : BREAKEVEN_COLOR,
-            }}
-          />
-        </div>
+          {/* Barra de progresso — Meta de Reserva */}
+          <div className="bg-surface rounded-xl border border-border px-5 py-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                  Progresso rumo à meta
+                </h4>
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Capital necessário para 6 meses de operação
+                </p>
+              </div>
+              <span className={`text-sm font-semibold tabular-nums ${metaAtingida ? 'text-value-income' : ''}`}
+                    style={!metaAtingida ? { color: BREAKEVEN_COLOR } : {}}>
+                {pctMeta.toFixed(1)}%
+              </span>
+            </div>
 
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-[10px] text-text-muted">
-            Acumulado: <span className="font-medium text-text-primary tabular-nums">{formatCurrency(saldoAtual)}</span>
-          </span>
-          {metaAtingida ? (
-            <span className="text-[10px] font-medium text-value-income tabular-nums">
-              Meta atingida
-            </span>
-          ) : (
-            <span className="text-[10px] text-text-muted tabular-nums">
-              Faltam <span className="font-medium" style={{ color: BREAKEVEN_COLOR }}>{formatCurrency(metaReserva - saldoAtual)}</span>
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Gráfico comparativo */}
-      <div className="bg-surface rounded-xl border border-border px-5 py-5">
-        <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">
-          Saldo Atual vs Meta de Reserva
-        </h4>
-        <p className="text-[10px] text-text-muted mb-4">
-          Comparativo entre patrimônio acumulado e capital-alvo de segurança
-        </p>
-        <div className="h-32">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }} barCategoryGap="35%">
-              <CartesianGrid strokeDasharray="3 3" stroke="#e8e8e4" horizontal={false} />
-              <XAxis
-                type="number" axisLine={false} tickLine={false}
-                tick={{ fontSize: 10, fill: '#9b9b9b' }}
-                tickFormatter={(v) => formatCurrencyCompact(v)}
-              />
-              <YAxis
-                type="category" dataKey="name" axisLine={false} tickLine={false}
-                tick={{ fontSize: 11, fill: '#6b6b6b', fontWeight: 500 }}
-                width={110}
-              />
-              <Tooltip
-                formatter={(value) => [formatCurrency(value), '']}
-                contentStyle={{
-                  backgroundColor: '#fafaf7',
-                  border: '1px solid #e8e8e4',
-                  borderRadius: '8px',
-                  fontSize: '11px',
+            {/* Barra */}
+            <div className="relative h-4 rounded-full bg-offwhite overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
+                style={{
+                  width: `${pctMeta}%`,
+                  backgroundColor: metaAtingida ? ANNUAL_INCOME_COLOR : BREAKEVEN_COLOR,
                 }}
               />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={32}>
-                <Cell fill={metaAtingida ? ANNUAL_INCOME_COLOR : BREAKEVEN_COLOR} />
-                <Cell fill="#9b9b9b" fillOpacity={0.5} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="flex items-center justify-center gap-8 mt-3 pt-3 border-t border-border">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: metaAtingida ? ANNUAL_INCOME_COLOR : BREAKEVEN_COLOR }} />
-            <span className="text-[10px] text-text-secondary">Saldo Atual</span>
+            </div>
+
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-[10px] text-text-muted">
+                Acumulado: <span className="font-medium text-text-primary tabular-nums">{formatCurrency(saldoAtual)}</span>
+              </span>
+              {metaAtingida ? (
+                <span className="text-[10px] font-medium text-value-income tabular-nums">
+                  Meta atingida
+                </span>
+              ) : (
+                <span className="text-[10px] text-text-muted tabular-nums">
+                  Faltam <span className="font-medium" style={{ color: BREAKEVEN_COLOR }}>{formatCurrency(metaReserva - saldoAtual)}</span>
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: '#9b9b9b', opacity: 0.5 }} />
-            <span className="text-[10px] text-text-secondary">Meta (6 meses de operação)</span>
+
+          {/* Gráfico comparativo */}
+          <div className="bg-surface rounded-xl border border-border px-5 py-5">
+            <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">
+              Saldo Atual vs Meta de Reserva
+            </h4>
+            <p className="text-[10px] text-text-muted mb-4">
+              Comparativo entre patrimônio acumulado e capital-alvo de segurança
+            </p>
+            <div className="h-32">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }} barCategoryGap="35%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e8e8e4" horizontal={false} />
+                  <XAxis
+                    type="number" axisLine={false} tickLine={false}
+                    tick={{ fontSize: 10, fill: '#9b9b9b' }}
+                    tickFormatter={(v) => formatCurrencyCompact(v)}
+                  />
+                  <YAxis
+                    type="category" dataKey="name" axisLine={false} tickLine={false}
+                    tick={{ fontSize: 11, fill: '#6b6b6b', fontWeight: 500 }}
+                    width={110}
+                  />
+                  <Tooltip
+                    formatter={(value) => [formatCurrency(value), '']}
+                    contentStyle={{
+                      backgroundColor: '#fafaf7',
+                      border: '1px solid #e8e8e4',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                    }}
+                  />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={32}>
+                    <Cell fill={metaAtingida ? ANNUAL_INCOME_COLOR : BREAKEVEN_COLOR} />
+                    <Cell fill="#9b9b9b" fillOpacity={0.5} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex items-center justify-center gap-8 mt-3 pt-3 border-t border-border">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: metaAtingida ? ANNUAL_INCOME_COLOR : BREAKEVEN_COLOR }} />
+                <span className="text-[10px] text-text-secondary">Saldo Atual</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: '#9b9b9b', opacity: 0.5 }} />
+                <span className="text-[10px] text-text-secondary">Meta (6 meses de operação)</span>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* VISÃO RESERVAS FIXAS (Negócio) */
+        <div className="space-y-4">
+          <div className="bg-surface rounded-xl border border-border px-6 py-5">
+            <div className="flex items-center gap-3 mb-4">
+              <Layers size={18} strokeWidth={1.8} className="text-primary shrink-0" />
+              <div>
+                <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                  Reservas Fixas (Apenas Negócio)
+                </h4>
+                <p className="text-[10px] text-text-muted mt-0.5">
+                  Cálculo focado em Despesas Fixas e Parcelamentos.
+                  <span className="block font-medium text-primary mt-1">
+                    * Não inclui Pró-labore ou Retiradas.
+                  </span>
+                </p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-offwhite rounded-xl border border-border px-5 py-4">
+                <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider mb-2">1 Mês de Reserva</p>
+                <p className="text-xl font-bold text-primary tabular-nums">
+                  {formatCurrency(avgFixedExpense)}
+                </p>
+                <p className="text-[9px] text-text-muted mt-1">Base: Média mensal fixa</p>
+              </div>
+              
+              <div className="bg-offwhite rounded-xl border border-border px-5 py-4">
+                <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider mb-2">3 Meses de Reserva</p>
+                <p className="text-xl font-bold text-primary tabular-nums">
+                  {formatCurrency(avgFixedExpense * 3)}
+                </p>
+                <p className="text-[9px] text-text-muted mt-1">Acumulado trimestral</p>
+              </div>
+              
+              <div className="bg-offwhite rounded-xl border border-border px-5 py-4 border-primary/20">
+                <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider mb-2">6 Meses de Reserva</p>
+                <p className="text-xl font-bold text-primary tabular-nums">
+                  {formatCurrency(avgFixedExpense * 6)}
+                </p>
+                <p className="text-[9px] text-text-muted mt-1">Segurança semestral</p>
+              </div>
+            </div>
+
+            <div className="mt-5 p-4 bg-offwhite/50 rounded-lg border border-dashed border-border">
+              <p className="text-[10px] text-text-muted leading-relaxed">
+                Este cálculo considera apenas as despesas classificadas como <span className="font-semibold">Fixas</span> e <span className="font-semibold">Parcelamentos</span>. 
+                O objetivo é garantir a continuidade das operações básicas do negócio (aluguel, sistemas, parcelas vigentes, etc) sem considerar retiradas dos sócios.
+              </p>
+            </div>
+          </div>
+
+          {/* Progresso Reservas Fixas */}
+          <div className="bg-surface rounded-xl border border-border px-5 py-5">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+                  Progresso vs Meta (6 meses fixos)
+                </h4>
+              </div>
+              <span className="text-sm font-semibold tabular-nums text-primary">
+                {avgFixedExpense > 0 ? Math.min((saldoAtual / (avgFixedExpense * 6)) * 100, 100).toFixed(1) : '0.0'}%
+              </span>
+            </div>
+            <div className="h-3 rounded-full bg-offwhite overflow-hidden">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+                style={{ width: `${avgFixedExpense > 0 ? Math.min((saldoAtual / (avgFixedExpense * 6)) * 100, 100) : 0}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between mt-2">
+              <span className="text-[10px] text-text-muted">
+                Saldo na conta de reserva: <span className="font-medium text-text-primary">{formatCurrency(saldoAtual)}</span>
+              </span>
+              <span className="text-[10px] text-text-muted">
+                Meta: <span className="font-medium text-text-primary">{formatCurrency(avgFixedExpense * 6)}</span>
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
+
 
 /* ================================================================== */
 /*  VISÃO ANUAL — Sub-abas: Visão Geral + Histórico + Projeção         */
@@ -1424,18 +1527,25 @@ function ProjecaoTab({ entries, annualYear }) {
 
 /* ── Despesas Anuais ──────────────────────────────────────────── */
 
-function AnnualExpensesTab({ entries, annualYear }) {
-  const yearEntries = useMemo(() =>
-    entries.filter((e) => {
+function AnnualExpensesTab({ entries, annualYear, invoiceData }) {
+  const [expenseView, setExpenseView] = useState('previsto')
+
+  const yearEntries = useMemo(() => {
+    const expanded = expandInvoiceEntries(entries, invoiceData)
+    return expanded.filter((e) => {
       if (!e.dueDate || e.type === 'Receita') return false
       return new Date(e.dueDate + 'T12:00:00').getFullYear() === annualYear
-    }),
-    [entries, annualYear],
+    })
+  }, [entries, annualYear, invoiceData])
+
+  const filtered = useMemo(
+    () => expenseView === 'efetivado' ? yearEntries.filter((e) => e.status === 'pago') : yearEntries,
+    [yearEntries, expenseView],
   )
 
-  const byType = useMemo(() => computeExpensesByType(yearEntries), [yearEntries])
-  const byOwner = useMemo(() => computeExpensesByOwner(yearEntries), [yearEntries])
-  const byCategory = useMemo(() => computeExpensesByCategory(yearEntries), [yearEntries])
+  const byType = useMemo(() => computeExpensesByType(filtered), [filtered])
+  const byOwner = useMemo(() => computeExpensesByOwner(filtered), [filtered])
+  const byCategory = useMemo(() => computeExpensesByCategory(filtered), [filtered])
   const totalByType = byType.reduce((s, d) => s + d.value, 0)
   const totalByOwner = byOwner.reduce((s, d) => s + d.value, 0)
   const totalByCategory = byCategory.reduce((s, d) => s + d.value, 0)
@@ -1455,15 +1565,15 @@ function AnnualExpensesTab({ entries, annualYear }) {
 
   const monthlyData = useMemo(() => {
     const data = SHORT_MONTHS.map((label) => ({ month: label, despesa: 0 }))
-    for (const e of yearEntries) {
+    for (const e of filtered) {
       if (!e.dueDate) continue
       const d = new Date(e.dueDate + 'T12:00:00')
       data[d.getMonth()].despesa += Math.abs(e.amount)
     }
     return data
-  }, [yearEntries])
+  }, [filtered])
 
-  if (totalByType === 0) {
+  if (yearEntries.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 bg-surface rounded-xl border border-border">
         <p className="text-[12px] text-text-muted">Nenhuma despesa registrada em {annualYear}.</p>
@@ -1474,19 +1584,30 @@ function AnnualExpensesTab({ entries, annualYear }) {
   return (
     <div className="space-y-4">
       <div className="bg-surface rounded-xl border border-border px-5 py-4">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <div>
             <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">Total de despesas no ano</h3>
-            <p className="text-[10px] text-text-muted mt-0.5">Soma de todas as saídas acumuladas em {annualYear}</p>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              {expenseView === 'previsto'
+                ? `Soma de todas as saídas previstas em ${annualYear}`
+                : `Soma das saídas efetivamente pagas em ${annualYear}`
+              }
+            </p>
           </div>
-          <p className="text-lg font-semibold tabular-nums text-value-expense">{formatCurrency(totalByType)}</p>
+          <div className="flex items-center gap-4">
+            <ExpenseViewToggle view={expenseView} onChange={setExpenseView} />
+            <p className="text-lg font-semibold tabular-nums text-value-expense">{formatCurrency(totalByType)}</p>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-surface rounded-xl border border-border px-5 py-4">
           <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Por tipo</h3>
-          <p className="text-[10px] text-text-muted mb-4">Fixa vs Variável vs Parcelamento</p>
+          <p className="text-[10px] text-text-muted mb-4">Distribuição por tipo de despesa</p>
+          {totalByType === 0 ? (
+            <p className="text-[11px] text-text-muted py-6 text-center">Nenhuma despesa {expenseView === 'efetivado' ? 'efetivada' : ''} neste ano.</p>
+          ) : (
           <div className="flex items-center gap-6">
             <div className="w-[120px] h-[120px] shrink-0">
               <ResponsiveContainer width="100%" height="100%">
@@ -1500,6 +1621,7 @@ function AnnualExpensesTab({ entries, annualYear }) {
             </div>
             <div className="flex-1 min-w-0"><ChartLegend data={byType} colorMap={TYPE_COLORS} total={totalByType} /></div>
           </div>
+          )}
         </div>
         <div className="bg-surface rounded-xl border border-border px-5 py-4">
           <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Por responsável</h3>
@@ -1565,6 +1687,8 @@ function AnnualExpensesTab({ entries, annualYear }) {
 /* ── Receitas Anuais ─────────────────────────────────────────── */
 
 function AnnualRevenueTab({ entries, annualYear }) {
+  const [revenueView, setRevenueView] = useState('previsto')
+
   const yearEntries = useMemo(() =>
     entries.filter((e) => {
       if (!e.dueDate || e.type !== 'Receita') return false
@@ -1573,8 +1697,16 @@ function AnnualRevenueTab({ entries, annualYear }) {
     [entries, annualYear],
   )
 
+  const filtered = useMemo(
+    () => revenueView === 'efetivado' ? yearEntries.filter((e) => e.status === 'pago') : yearEntries,
+    [yearEntries, revenueView],
+  )
+
   const totalForecast = yearEntries.reduce((s, e) => s + e.amount, 0)
   const totalSettled = yearEntries.filter((e) => e.status === 'pago').reduce((s, e) => s + e.amount, 0)
+
+  const byType = useMemo(() => computeRevenuesByType(filtered), [filtered])
+  const totalByType = byType.reduce((s, d) => s + d.value, 0)
 
   const monthlyData = useMemo(() => {
     const data = SHORT_MONTHS.map((label) => ({ month: label, prevista: 0, efetivada: 0 }))
@@ -1638,13 +1770,40 @@ function AnnualRevenueTab({ entries, annualYear }) {
           { label: 'Efetivada', color: ANNUAL_INCOME_COLOR },
         ]} />
       </div>
+
+      <div className="bg-surface rounded-xl border border-border px-5 py-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Por tipo</h3>
+            <p className="text-[10px] text-text-muted">Distribuição por tipo de receita</p>
+          </div>
+          <ExpenseViewToggle view={revenueView} onChange={setRevenueView} />
+        </div>
+        {totalByType === 0 ? (
+          <p className="text-[11px] text-text-muted py-6 text-center">Nenhuma receita {revenueView === 'efetivado' ? 'efetivada' : ''} neste ano.</p>
+        ) : (
+          <div className="flex items-center gap-6">
+            <div className="w-[120px] h-[120px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={byType} cx="50%" cy="50%" innerRadius={36} outerRadius={54} paddingAngle={2} dataKey="value" stroke="none">
+                    {byType.map((entry) => <Cell key={entry.name} fill={RECEITA_COLORS[entry.name] || '#9b9b9b'} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 min-w-0"><ChartLegend data={byType} colorMap={RECEITA_COLORS} total={totalByType} /></div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
 /* ── Visão Anual: wrapper com sub-tabs ──────────────────────────── */
 
-function AnnualView({ entries }) {
+function AnnualView({ entries, invoiceData }) {
   const now = new Date()
   const [annualYear, setAnnualYear] = useState(now.getFullYear())
   const [annualSubTab, setAnnualSubTab] = useState('total')
@@ -1700,14 +1859,8 @@ function AnnualView({ entries }) {
 
         <div className="flex-1 min-w-0">
           {annualSubTab === 'total' && <AnnualOverviewTab entries={entries} annualYear={annualYear} />}
-          {annualSubTab === 'equilibrio' && (
-            <BreakevenTab
-              periodEntries={yearEntries}
-              periodLabel="Anual"
-              periodHint={String(annualYear)}
-            />
-          )}
-          {annualSubTab === 'despesas' && <AnnualExpensesTab entries={entries} annualYear={annualYear} />}
+          {annualSubTab === 'equilibrio' && <BreakevenTab />}
+          {annualSubTab === 'despesas' && <AnnualExpensesTab entries={entries} annualYear={annualYear} invoiceData={invoiceData} />}
           {annualSubTab === 'receitas' && <AnnualRevenueTab entries={entries} annualYear={annualYear} />}
           {annualSubTab === 'historico' && <HistoricoTab entries={entries} annualYear={annualYear} />}
           {annualSubTab === 'projecao' && <ProjecaoTab entries={entries} annualYear={annualYear} />}
@@ -1721,7 +1874,8 @@ function AnnualView({ entries }) {
 /*  COMPONENTE PRINCIPAL                                               */
 /* ================================================================== */
 
-export default function DashboardPage({ entries }) {
+export default function DashboardPage({ entries, invoiceData }) {
+  const { accounts, categories, classifyEntry, classifyReceita } = useWorkspaceData()
   const now = new Date()
   const [topTab, setTopTab] = useState('mensal')
   const [year, setYear] = useState(now.getFullYear())
@@ -1782,7 +1936,7 @@ export default function DashboardPage({ entries }) {
         })}
       </div>
 
-      {topTab === 'anual' && <AnnualView entries={entries} />}
+      {topTab === 'anual' && <AnnualView entries={entries} invoiceData={invoiceData} />}
 
       {topTab === 'reserva' && (
         <ReservaTab
@@ -1833,14 +1987,10 @@ export default function DashboardPage({ entries }) {
               <>
                 {monthlySubTab === 'total' && <OverviewTab m={m} />}
                 {monthlySubTab === 'equilibrio' && (
-                  <BreakevenTab
-                    periodEntries={monthEntries}
-                    periodLabel="Mensal"
-                    periodHint={`${MONTH_NAMES[month].toLowerCase()} de ${year}`}
-                  />
+                  <BreakevenTab />
                 )}
-                {monthlySubTab === 'despesas' && <ExpensesTab monthEntries={monthEntries} />}
-                {monthlySubTab === 'receitas' && <RevenueTab />}
+                {monthlySubTab === 'despesas' && <ExpensesTab monthEntries={monthEntries} invoiceData={invoiceData} />}
+                {monthlySubTab === 'receitas' && <RevenueTab monthEntries={monthEntries} />}
               </>
             )}
           </div>
