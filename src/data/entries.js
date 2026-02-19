@@ -20,6 +20,7 @@ export const initialEntries = [
     status: 'pago',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'tecnologia',
   },
   {
     id: 2,
@@ -31,6 +32,7 @@ export const initialEntries = [
     status: 'atrasado',
     recurrence: 'Variável',
     accountId: 'sicoob-lenon',
+    categoryId: 'manutencao-escritorio',
   },
   {
     id: 3,
@@ -43,6 +45,7 @@ export const initialEntries = [
     recurrence: '—',
     accountId: 'sicoob-lenon',
     captador: 'lenon',
+    categoryId: 'honorarios-iniciais',
   },
   {
     id: 4,
@@ -54,6 +57,7 @@ export const initialEntries = [
     status: 'pago',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'aluguel',
   },
   {
     id: 5,
@@ -65,6 +69,7 @@ export const initialEntries = [
     status: 'pago',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'tecnologia',
   },
 
   // ── Fevereiro 2026 ────────────────────────────────────────────
@@ -78,6 +83,7 @@ export const initialEntries = [
     status: 'pago',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'aluguel',
   },
   {
     id: 7,
@@ -90,6 +96,7 @@ export const initialEntries = [
     recurrence: '—',
     accountId: 'sicoob-lenon',
     captador: 'lenon',
+    categoryId: 'honorarios-iniciais',
   },
   {
     id: 8,
@@ -102,6 +109,7 @@ export const initialEntries = [
     recurrence: '—',
     accountId: 'sicoob-berna',
     captador: 'berna',
+    categoryId: 'honorarios-iniciais',
   },
   {
     id: 9,
@@ -113,6 +121,7 @@ export const initialEntries = [
     status: 'pago',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'tecnologia',
   },
   {
     id: 10,
@@ -125,6 +134,7 @@ export const initialEntries = [
     recurrence: '—',
     accountId: 'sicoob-berna',
     captador: 'gilberto',
+    categoryId: 'honorarios-iniciais',
   },
   {
     id: 11,
@@ -136,6 +146,7 @@ export const initialEntries = [
     status: 'pago',
     recurrence: 'Parcelamento',
     accountId: 'cartao-sicoob-lenon',
+    categoryId: 'moveis',
   },
   {
     id: 12,
@@ -147,6 +158,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Variável',
     accountId: 'sicoob-berna',
+    categoryId: 'material-escritorio',
   },
   {
     id: 13,
@@ -158,6 +170,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'tecnologia',
   },
   {
     id: 14,
@@ -169,6 +182,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Variável',
     accountId: 'sicoob-lenon',
+    categoryId: 'manutencao-escritorio',
   },
 
   // ── Março 2026 ────────────────────────────────────────────────
@@ -182,6 +196,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'aluguel',
   },
   {
     id: 16,
@@ -193,6 +208,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Parcelamento',
     accountId: 'cartao-sicoob-lenon',
+    categoryId: 'moveis',
   },
   {
     id: 17,
@@ -216,6 +232,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Variável',
     accountId: 'sicoob-lenon',
+    categoryId: 'manutencao-escritorio',
   },
   {
     id: 19,
@@ -227,6 +244,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'tecnologia',
   },
   {
     id: 20,
@@ -250,6 +268,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'tecnologia',
   },
 
   // ── Abril 2026 ────────────────────────────────────────────────
@@ -263,6 +282,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'aluguel',
   },
   {
     id: 23,
@@ -274,6 +294,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Parcelamento',
     accountId: 'cartao-sicoob-lenon',
+    categoryId: 'moveis',
   },
   {
     id: 24,
@@ -309,6 +330,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Parcelamento',
     accountId: 'sicoob-berna',
+    categoryId: 'manutencao-escritorio',
   },
 
   // ── Maio 2026 ─────────────────────────────────────────────────
@@ -322,6 +344,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Fixa',
     accountId: 'sicoob-lenon',
+    categoryId: 'aluguel',
   },
   {
     id: 28,
@@ -333,6 +356,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Parcelamento',
     accountId: 'cartao-sicoob-lenon',
+    categoryId: 'moveis',
   },
   {
     id: 29,
@@ -356,6 +380,7 @@ export const initialEntries = [
     status: 'pendente',
     recurrence: 'Parcelamento',
     accountId: 'sicoob-berna',
+    categoryId: 'manutencao-escritorio',
   },
   {
     id: 31,

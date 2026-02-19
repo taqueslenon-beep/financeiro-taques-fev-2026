@@ -11,6 +11,7 @@ import {
   BarChart, Bar, ReferenceLine,
 } from 'recharts'
 import { accounts } from '../data/accounts'
+import { categories } from '../data/categories'
 
 /* ------------------------------------------------------------------ */
 /*  Constantes                                                         */
@@ -57,6 +58,30 @@ const RESERVA_ACCOUNT_ID = 'reserva-emergencia'
 /** Cores */
 const OWNER_COLORS = { lenon: '#004D4A', berna: '#C4D600' }
 const TYPE_COLORS = { Fixa: '#223631', Variável: '#9b9b9b', Parcelamento: '#6b6b6b' }
+const CATEGORY_LABEL_MAP = Object.fromEntries(
+  [...categories.despesa, ...categories.receita].map((c) => [c.id, c.label]),
+)
+
+const CATEGORY_COLORS = {
+  'aluguel': '#004D4A',
+  'mercado': '#2D6A4F',
+  'folha-pagamento': '#40916C',
+  'tecnologia': '#1B4332',
+  'contabilidade': '#52796F',
+  'anuidade-oab': '#354F52',
+  'impostos': '#6B705C',
+  'taxas': '#A68A64',
+  'deslocamentos-viagens': '#B08968',
+  'manutencao-escritorio': '#7F5539',
+  'moveis': '#9C6644',
+  'marketing': '#C4D600',
+  'pro-labore': '#223631',
+  'distribuicao-lucros': '#3A5A40',
+  'material-escritorio': '#588157',
+  'treinamentos-cursos': '#A3B18A',
+  'repasse-parceiro': '#DAD7CD',
+}
+
 const ANNUAL_INCOME_COLOR = '#166534'
 const ANNUAL_EXPENSE_COLOR = '#991b1b'
 const BREAKEVEN_COLOR = '#223631'
@@ -126,6 +151,18 @@ function computeExpensesByOwner(entries) {
     map[owner] = (map[owner] || 0) + Math.abs(e.amount)
   }
   return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
+}
+
+function computeExpensesByCategory(entries) {
+  const map = {}
+  for (const e of entries) {
+    if (e.type !== 'Despesa') continue
+    const key = e.categoryId || 'sem-categoria'
+    map[key] = (map[key] || 0) + Math.abs(e.amount)
+  }
+  return Object.entries(map)
+    .map(([id, value]) => ({ name: CATEGORY_LABEL_MAP[id] || 'Sem categoria', value, id }))
+    .sort((a, b) => b.value - a.value)
 }
 
 function computeAnnualData(entries, year) {
@@ -487,8 +524,15 @@ function OverviewTab({ m }) {
 function ExpensesTab({ monthEntries }) {
   const byType = useMemo(() => computeExpensesByType(monthEntries), [monthEntries])
   const byOwner = useMemo(() => computeExpensesByOwner(monthEntries), [monthEntries])
+  const byCategory = useMemo(() => computeExpensesByCategory(monthEntries), [monthEntries])
   const totalByType = byType.reduce((s, d) => s + d.value, 0)
   const totalByOwner = byOwner.reduce((s, d) => s + d.value, 0)
+  const totalByCategory = byCategory.reduce((s, d) => s + d.value, 0)
+
+  const categoryColorMap = {}
+  for (const item of byCategory) {
+    categoryColorMap[item.name] = CATEGORY_COLORS[item.id] || '#9b9b9b'
+  }
 
   const ownerLabelMap = { lenon: 'Lenon', berna: 'Berna', outros: 'Outros' }
   const ownerColorMap = { lenon: OWNER_COLORS.lenon, berna: OWNER_COLORS.berna, outros: '#9b9b9b' }
@@ -553,6 +597,26 @@ function ExpensesTab({ monthEntries }) {
           </div>
         </div>
       </div>
+
+      {byCategory.length > 0 && (
+        <div className="bg-surface rounded-xl border border-border px-5 py-4">
+          <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Por Categoria</h3>
+          <p className="text-[10px] text-text-muted mb-4">Distribuição por tipo de gasto</p>
+          <div className="flex items-start gap-6">
+            <div className="w-[140px] h-[140px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={byCategory} cx="50%" cy="50%" innerRadius={42} outerRadius={64} paddingAngle={2} dataKey="value" stroke="none">
+                    {byCategory.map((entry) => <Cell key={entry.name} fill={categoryColorMap[entry.name] || '#9b9b9b'} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 min-w-0"><ChartLegend data={byCategory} colorMap={categoryColorMap} total={totalByCategory} /></div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1371,8 +1435,15 @@ function AnnualExpensesTab({ entries, annualYear }) {
 
   const byType = useMemo(() => computeExpensesByType(yearEntries), [yearEntries])
   const byOwner = useMemo(() => computeExpensesByOwner(yearEntries), [yearEntries])
+  const byCategory = useMemo(() => computeExpensesByCategory(yearEntries), [yearEntries])
   const totalByType = byType.reduce((s, d) => s + d.value, 0)
   const totalByOwner = byOwner.reduce((s, d) => s + d.value, 0)
+  const totalByCategory = byCategory.reduce((s, d) => s + d.value, 0)
+
+  const categoryColorMap = {}
+  for (const item of byCategory) {
+    categoryColorMap[item.name] = CATEGORY_COLORS[item.id] || '#9b9b9b'
+  }
 
   const ownerLabelMap = { lenon: 'Lenon', berna: 'Berna', outros: 'Outros' }
   const ownerColorMap = { lenon: OWNER_COLORS.lenon, berna: OWNER_COLORS.berna, outros: '#9b9b9b' }
@@ -1448,6 +1519,26 @@ function AnnualExpensesTab({ entries, annualYear }) {
           </div>
         </div>
       </div>
+
+      {byCategory.length > 0 && (
+        <div className="bg-surface rounded-xl border border-border px-5 py-4">
+          <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Por Categoria</h3>
+          <p className="text-[10px] text-text-muted mb-4">Distribuição por tipo de gasto em {annualYear}</p>
+          <div className="flex items-start gap-6">
+            <div className="w-[140px] h-[140px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={byCategory} cx="50%" cy="50%" innerRadius={42} outerRadius={64} paddingAngle={2} dataKey="value" stroke="none">
+                    {byCategory.map((entry) => <Cell key={entry.name} fill={categoryColorMap[entry.name] || '#9b9b9b'} />)}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 min-w-0"><ChartLegend data={byCategory} colorMap={categoryColorMap} total={totalByCategory} /></div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-surface rounded-xl border border-border px-5 py-5">
         <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Evolução mensal de despesas</h3>
