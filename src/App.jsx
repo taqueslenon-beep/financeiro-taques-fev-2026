@@ -9,6 +9,7 @@ import RateioModal from './components/RateioModal'
 import AccountsPage from './components/AccountsPage'
 import AccountStatement from './components/AccountStatement'
 import DashboardPage from './components/DashboardPage'
+import ProjectionPage from './components/ProjectionPage'
 import CreditCardsPage from './components/CreditCardsPage'
 import WorkspaceSwitcher from './components/WorkspaceSwitcher'
 import { useWorkspace } from './contexts/WorkspaceContext'
@@ -50,6 +51,86 @@ function getInvoiceDueDate(year, month) {
   return `${year}-${mm}-10`
 }
 
+function parseYearMonth(value) {
+  if (!value || !/^\d{4}-\d{2}$/.test(value)) return null
+  const year = parseInt(value.slice(0, 4), 10)
+  const month = parseInt(value.slice(5, 7), 10) - 1
+  if (Number.isNaN(year) || Number.isNaN(month) || month < 0 || month > 11) return null
+  return { year, month }
+}
+
+function inferForecastStartMonth(entry) {
+  const fromField = parseYearMonth(entry.forecastStartMonth)
+  if (fromField) return fromField
+
+  if (entry.dueDate) {
+    const fromDueDate = parseYearMonth(entry.dueDate.slice(0, 7))
+    if (fromDueDate) return fromDueDate
+  }
+
+  if (typeof entry.createdAt === 'string' && entry.createdAt.length >= 7) {
+    const fromCreatedAt = parseYearMonth(entry.createdAt.slice(0, 7))
+    if (fromCreatedAt) return fromCreatedAt
+  }
+
+  const numericId = Number(entry.id)
+  if (!Number.isNaN(numericId) && numericId > 0) {
+    const d = new Date(numericId)
+    if (!Number.isNaN(d.getTime())) {
+      return { year: d.getFullYear(), month: d.getMonth() }
+    }
+  }
+
+  const now = new Date()
+  return { year: now.getFullYear(), month: now.getMonth() }
+}
+
+function getForecastMonthlyAmount(entry) {
+  const abs = Math.abs(entry.amount || 0)
+  const freq = entry.forecastFrequency || 'mensal'
+  const monthlyAbs = freq === 'semanal' ? abs * 4 : freq === 'anual' ? abs / 12 : abs
+  const signed = entry.type === 'Receita' ? monthlyAbs : -monthlyAbs
+  return Math.round(signed * 100) / 100
+}
+
+function buildForecastVirtualEntries(entries) {
+  const now = new Date()
+  const horizonMonths = 72
+  const virtual = []
+
+  for (const entry of entries) {
+    if (entry.recurrence !== 'Previsão') continue
+    if (entry.dueDate) continue
+
+    const start = inferForecastStartMonth(entry)
+    const monthlyAmount = getForecastMonthlyAmount(entry)
+
+    for (let i = 0; i < horizonMonths; i++) {
+      const date = new Date(start.year, start.month + i, 1, 12, 0, 0)
+      const year = date.getFullYear()
+      const month = date.getMonth()
+      const lastDay = new Date(year, month + 1, 0).getDate()
+      const dueDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+      const startsBeforeOrNow =
+        year < now.getFullYear() || (year === now.getFullYear() && month <= now.getMonth())
+
+      virtual.push({
+        ...entry,
+        id: `${entry.id}-forecast-${year}-${String(month + 1).padStart(2, '0')}`,
+        amount: monthlyAmount,
+        dueDate,
+        status: startsBeforeOrNow && entry.status === 'pago' ? 'pago' : (entry.status || 'pendente'),
+        settlementDate: '',
+        _isForecastVirtual: true,
+        _forecastSourceId: entry.id,
+        _hideDueDate: true,
+      })
+    }
+  }
+
+  return virtual
+}
+
 export default function App() {
   const { workspaceId, config } = useWorkspace()
   const prefix = config.collectionsPrefix
@@ -58,6 +139,7 @@ export default function App() {
   const [entries, setEntries] = useState([])
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [firebaseError, setFirebaseError] = useState(null)
   const [editingEntry, setEditingEntry] = useState(null)
   const [selectedAccount, setSelectedAccount] = useState(null)
 
@@ -70,20 +152,43 @@ export default function App() {
 
   useEffect(() => {
     setLoading(true)
+    setFirebaseError(null)
     setEntries([])
     setAccounts([])
     setInvoiceData({})
     setSelectedAccount(null)
 
-    fetchAccounts(prefix).then(setAccounts)
-    fetchInvoiceData(prefix).then(setInvoiceData)
+    let settled = false
 
-    const unsubscribe = subscribeEntries((firestoreEntries) => {
-      setEntries(firestoreEntries)
-      setLoading(false)
-    }, prefix)
+    fetchAccounts(prefix).then(setAccounts).catch((err) => {
+      console.error('[Firebase] fetchAccounts error:', err)
+    })
+    fetchInvoiceData(prefix).then(setInvoiceData).catch((err) => {
+      console.error('[Firebase] fetchInvoiceData error:', err)
+    })
 
-    return () => unsubscribe()
+    const unsubscribe = subscribeEntries(
+      (firestoreEntries) => {
+        settled = true
+        setEntries(firestoreEntries)
+        setLoading(false)
+      },
+      prefix,
+      (err) => {
+        settled = true
+        setFirebaseError(err.message || 'Erro ao conectar com o banco de dados')
+        setLoading(false)
+      },
+    )
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        setFirebaseError('Tempo esgotado ao conectar com o banco de dados. Verifique sua conexão com a internet.')
+        setLoading(false)
+      }
+    }, 15000)
+
+    return () => { unsubscribe(); clearTimeout(timeout) }
   }, [prefix])
 
   useEffect(() => {
@@ -105,8 +210,8 @@ export default function App() {
   const INVOICE_START = {
     'cartao-sicoob-lenon': 2026 * 12 + 1,
     'cartao-sicoob-berna': 2026 * 12 + 2,
-    'cartao-pessoal-lenon': 2026 * 12 + 1,
-    'cartao-pessoal-berna': 2026 * 12 + 2,
+    'cartao-sicoob-pessoal-lenon': 2026 * 12 + 1,
+    'cartao-bb-pessoal-lenon': 2026 * 12 + 1,
   }
   const INVOICE_END_YEAR = 2027
 
@@ -147,7 +252,8 @@ export default function App() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    const base = [...entries, ...invoiceEntries]
+    const forecastVirtualEntries = buildForecastVirtualEntries(entries)
+    const base = [...entries, ...invoiceEntries, ...forecastVirtualEntries]
 
     const faturamentoByMonth = {}
     for (const e of base) {
@@ -172,6 +278,7 @@ export default function App() {
       }
 
       if (entry.status === 'pago' || entry.status === 'aguardando') return entry
+      if (entry._isForecastVirtual || entry._hideDueDate) return entry
       if (!entry.dueDate) return entry
       const due = new Date(entry.dueDate + 'T12:00:00')
       if (due < today && (entry.status === 'pendente' || !entry.status)) {
@@ -381,8 +488,26 @@ export default function App() {
 
   if (loading) {
     return (
+      <div className="flex min-h-screen items-center justify-center flex-col gap-4 bg-offwhite">
+        <div className="w-10 h-10 border-4 border-gray-300 border-t-primary rounded-full animate-spin" />
+        <p className="text-text-secondary text-sm">Conectando ao banco de dados...</p>
+      </div>
+    )
+  }
+
+  if (firebaseError) {
+    return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-500 text-lg">Carregando dados...</p>
+        <div className="text-center max-w-md p-8">
+          <p className="text-lg font-medium text-text-primary mb-2">Erro ao carregar dados</p>
+          <p className="text-sm text-text-secondary mb-4">{firebaseError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-light transition-colors cursor-pointer"
+          >
+            Tentar novamente
+          </button>
+        </div>
       </div>
     )
   }
@@ -424,6 +549,10 @@ export default function App() {
 
         {activePage === 'painel' && (
           <DashboardPage entries={entries} invoiceData={invoiceData} />
+        )}
+
+        {activePage === 'projecao-pessoal' && (
+          <ProjectionPage entries={allEntries} />
         )}
 
         {activePage === 'cartoes' && <CreditCardsPage />}

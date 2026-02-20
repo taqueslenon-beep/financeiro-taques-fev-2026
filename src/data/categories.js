@@ -38,6 +38,8 @@ export const categories = {
 
 export const personalCategories = {
   receita: [
+    { id: 'pro-labore-pessoal', label: 'Pró-labore' },
+    { id: 'retirada-pessoal', label: 'Retirada / Distribuição' },
     { id: 'salario', label: 'Salário' },
     { id: 'freelance', label: 'Freelance' },
     { id: 'rendimentos', label: 'Rendimento de investimentos' },
@@ -76,8 +78,16 @@ export const getCategoriesByType = (type) => categories[type] || []
  */
 export const tipoOptions = [
   { id: 'fixa', label: 'Fixa' },
+  { id: 'previsao', label: 'Previsão' },
   { id: 'variavel', label: 'Variável' },
   { id: 'parcelamento', label: 'Parcelamento' },
+]
+
+export const personalTipoOptions = [
+  { id: 'fixa', label: 'Despesa fixa' },
+  { id: 'previsao', label: 'Previsão' },
+  { id: 'parcelamento', label: 'Parcelamento' },
+  { id: 'variavel', label: 'Despesa variável' },
 ]
 
 /* ── Workspace-aware helpers ────────────────────────────────────── */
@@ -92,5 +102,5 @@ export function getCategoriesByTypeForWorkspace(workspace, type) {
 }
 
 export function getTipoOptionsForWorkspace(workspace) {
-  return tipoOptions
+  return workspace === 'pessoal' ? personalTipoOptions : tipoOptions
 }

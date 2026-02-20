@@ -60,6 +60,7 @@ export function classifyEntry(entry) {
   if (isRepasseParceiro(entry)) return 'Repasse Parceiros'
   if (isImposto(entry)) return 'Impostos'
   if (isParcelamento(entry)) return 'Parcelamento'
+  if (entry.recurrence === 'Previsao' || entry.recurrence === 'Previsão') return 'Previsão'
   if (entry.recurrence === 'Fixa' || entry.recurrence === 'Fixa/Anual') return 'Fixa'
   return 'Variável'
 }
@@ -93,6 +94,7 @@ export function classifyReceita(entry) {
 export const TIPO_DESPESA_OPTIONS = [
   { value: '', label: 'Ver tudo' },
   { value: 'Fixa', label: 'Fixa' },
+  { value: 'Previsão', label: 'Previsão' },
   { value: 'Impostos', label: 'Impostos' },
   { value: 'Parcelamento', label: 'Parcelamento' },
   { value: 'Repasse Parceiros', label: 'Repasse Parceiros' },
@@ -114,6 +116,7 @@ export const TIPO_RECEITA_OPTIONS = [
 export const TIPO_OPTIONS = [
   { value: '', label: 'Ver tudo' },
   { value: 'Fixa', label: 'Fixa' },
+  { value: 'Previsão', label: 'Previsão' },
   { value: 'Impostos', label: 'Impostos' },
   { value: 'Parcelamento', label: 'Parcelamento' },
   { value: 'Repasse Parceiros', label: 'Repasse Parceiros' },
@@ -133,11 +136,15 @@ export const TIPO_OPTIONS = [
 function classifyPersonalEntry(entry) {
   if (entry.recurrence === 'Parcelamento' || /\(Parcela \d+\/\d+\)/.test(entry.description)) return 'Parcelamento'
   if (entry.recurrence === 'Fixa' || entry.recurrence === 'Fixa/Anual') return 'Fixa'
+  if (entry.recurrence === 'Previsao' || entry.recurrence === 'Previsão') return 'Previsão'
   return 'Variável'
 }
 
 function classifyPersonalReceita(entry) {
   const cat = entry.categoryId || ''
+  const desc = (entry.description || '').toLowerCase()
+  if (cat === 'pro-labore-pessoal' || desc.includes('pró-labore')) return 'Pró-labore'
+  if (cat === 'retirada-pessoal' || desc.includes('retirada') || desc.includes('distribuição')) return 'Retirada'
   if (cat === 'salario') return 'Salário'
   if (cat === 'freelance') return 'Freelance'
   if (cat === 'rendimentos') return 'Investimentos'
@@ -149,12 +156,15 @@ function classifyPersonalReceita(entry) {
 const PERSONAL_TIPO_DESPESA_OPTIONS = [
   { value: '', label: 'Ver tudo' },
   { value: 'Fixa', label: 'Fixa' },
-  { value: 'Variável', label: 'Variável' },
+  { value: 'Previsão', label: 'Previsão' },
   { value: 'Parcelamento', label: 'Parcelamento' },
+  { value: 'Variável', label: 'Variável' },
 ]
 
 const PERSONAL_TIPO_RECEITA_OPTIONS = [
   { value: '', label: 'Ver tudo' },
+  { value: 'Pró-labore', label: 'Pró-labore' },
+  { value: 'Retirada', label: 'Retirada' },
   { value: 'Salário', label: 'Salário' },
   { value: 'Freelance', label: 'Freelance' },
   { value: 'Investimentos', label: 'Investimentos' },

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Pencil, Trash2, ListFilter, X, Check, LayoutList, Gauge, TrendingUp, FileText, Link2, AlertTriangle, CornerDownRight, Clock } from 'lucide-react'
-import { useWorkspaceData } from '../contexts/WorkspaceContext'
+import { useWorkspaceData, useWorkspace } from '../contexts/WorkspaceContext'
 import StatusBadge from './StatusBadge'
 import ConfirmDialog from './ConfirmDialog'
 import SettlementDialog from './SettlementDialog'
@@ -24,9 +24,11 @@ const MONTH_NAMES = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ]
 
-const OWNER_ACCOUNTS = {
-  lenon: accounts.filter((a) => a.owner === 'lenon').map((a) => a.id),
-  berna: accounts.filter((a) => a.owner === 'berna').map((a) => a.id),
+function buildOwnerAccounts(accounts) {
+  return {
+    lenon: accounts.filter((a) => a.owner === 'lenon').map((a) => a.id),
+    berna: accounts.filter((a) => a.owner === 'berna').map((a) => a.id),
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -51,6 +53,11 @@ function formatDate(dateStr) {
   return `${date.getDate()} ${SHORT_MONTHS[date.getMonth()]} ${date.getFullYear()}`
 }
 
+function formatDueDateForDisplay(row) {
+  if (row._hideDueDate) return '—'
+  return row.dueDate ? formatDate(row.dueDate) : '—'
+}
+
 function formatDescription(row) {
   if (row.recurrence !== 'Parcelamento') return row.description
   if (/\(Parcela \d+\/\d+\)/.test(row.description)) return row.description
@@ -63,7 +70,7 @@ function formatDescription(row) {
 /*  Filtragem e ordenação                                              */
 /* ------------------------------------------------------------------ */
 
-function applyFilters(entries, { year, month, categoryFilter, statusFilter, ownerFilter, tipoFilter }) {
+function applyFilters(entries, { year, month, categoryFilter, statusFilter, ownerFilter, tipoFilter, ownerAccounts, classifyAnyFn }) {
   return entries.filter((entry) => {
     if (!entry.dueDate) return false
     const date = new Date(entry.dueDate + 'T12:00:00')
@@ -71,10 +78,10 @@ function applyFilters(entries, { year, month, categoryFilter, statusFilter, owne
 
     if (categoryFilter && entry.type !== categoryFilter) return false
     if (statusFilter && entry.status !== statusFilter) return false
-    if (tipoFilter && classifyAny(entry) !== tipoFilter) return false
+    if (tipoFilter && classifyAnyFn && classifyAnyFn(entry) !== tipoFilter) return false
 
-    if (ownerFilter) {
-      const ownerAccountIds = OWNER_ACCOUNTS[ownerFilter]
+    if (ownerFilter && ownerAccounts) {
+      const ownerAccountIds = ownerAccounts[ownerFilter]
       if (!ownerAccountIds || !ownerAccountIds.includes(entry.accountId)) return false
     }
 
@@ -581,11 +588,6 @@ const ownerInlineOptions = [
   { value: 'berna', label: 'Berna' },
 ]
 
-const OWNER_ACCOUNT_MAP = {
-  lenon: accounts.find((a) => a.owner === 'lenon' && a.type === 'banco')?.id || 'sicoob-lenon',
-  berna: accounts.find((a) => a.owner === 'berna' && a.type === 'banco')?.id || 'sicoob-berna',
-}
-
 /* ------------------------------------------------------------------ */
 /*  Componente principal                                               */
 /* ------------------------------------------------------------------ */
@@ -610,7 +612,7 @@ const ownerOptions = [
   { value: 'berna', label: 'Berna' },
 ]
 
-function getOwnerLabel(accountId) {
+function getOwnerLabel(accountId, accounts) {
   const account = accounts.find((a) => a.id === accountId)
   if (!account) return '—'
   return account.owner === 'lenon' ? 'Lenon' : 'Berna'
@@ -713,8 +715,18 @@ function OwnerChangeDialog({ entry, newOwnerKey, relatedEntries, onConfirmSingle
 
 export default function DataTable({ entries, onEdit, onDelete, onSettle, onReverseSettle, onInlineUpdate }) {
   const { accounts, classifyEntry, classifyReceita, TIPO_OPTIONS } = useWorkspaceData()
+  const { workspaceId } = useWorkspace()
+  const isPessoal = workspaceId === 'pessoal'
   const CARD_ACCOUNT_IDS = useMemo(() => new Set(accounts.filter((a) => a.type === 'cartao').map((a) => a.id)), [accounts])
+  const OWNER_ACCOUNTS = useMemo(() => buildOwnerAccounts(accounts), [accounts])
   const classifyAny = (entry) => entry.type === 'Receita' ? classifyReceita(entry) : classifyEntry(entry)
+  const sourceEntryById = useMemo(() => {
+    const map = new Map()
+    for (const e of entries) {
+      if (!e._isForecastVirtual) map.set(String(e.id), e)
+    }
+    return map
+  }, [entries])
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -822,6 +834,8 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
     statusFilter: effectiveStatusFilter,
     ownerFilter,
     tipoFilter,
+    ownerAccounts: OWNER_ACCOUNTS,
+    classifyAnyFn: classifyAny,
   })
   const sorted = sortColumn
     ? [...filtered].sort((a, b) => {
@@ -837,6 +851,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
     ? entries
         .filter((entry) => {
           if (!entry.dueDate) return false
+          if (entry._hideDueDate) return false
           if (entry.status === 'pago') return false
           if (entry.isInvoice) return false
           const todayStr = new Date().toISOString().slice(0, 10)
@@ -934,6 +949,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                   onChange={setTipoFilter}
                   colKey="tipo"
                 />
+                {!isPessoal && (
                 <ColumnFilterDropdown
                   label="RESPONSÁVEL"
                   value={ownerFilter}
@@ -941,6 +957,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                   onChange={setOwnerFilter}
                   colKey="owner"
                 />
+                )}
                 <ColumnFilterDropdown
                   label="STATUS"
                   value={statusFilter}
@@ -957,7 +974,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
               {sorted.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={columns.length}
+                    colSpan={isPessoal ? columns.length - 1 : columns.length}
                     className="px-4 py-10 text-center text-sm text-text-muted"
                   >
                     {hasActiveFilters
@@ -970,6 +987,11 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                   const isPaid = row.status === 'pago'
                   const isCardRow = row.isInvoice || CARD_ACCOUNT_IDS.has(row.accountId)
                   const isInvoice = !!row.isInvoice
+                  const isVirtualForecast = !!row._isForecastVirtual
+                  const canManageVirtualForecast = isVirtualForecast
+                  const sourceForecastEntry = canManageVirtualForecast
+                    ? sourceEntryById.get(String(row._forecastSourceId))
+                    : null
                   const isRateio = !!row.rateioId
                   const rLevel = getEntryLevel(row)
                   const isN2 = isRateio && rLevel === 2
@@ -982,7 +1004,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                       className={`
                         transition-all duration-300 ease-in-out
                         group
-                        ${isCardRow
+                        ${isInvoice
                           ? 'bg-[#D6EDE6] hover:bg-[#C2E4DA]'
                           : isN1
                             ? 'bg-amber-50/40 hover:bg-amber-50/70'
@@ -1000,7 +1022,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                           )}
                           {isAguardando ? (
                             <Clock size={isN2 ? 13 : 14} strokeWidth={1.8} className="text-amber-500/50 shrink-0" title="Aguardando efetivação da receita" />
-                          ) : !isInvoice ? (
+                          ) : (!isInvoice && !isVirtualForecast) ? (
                             <SettlementCheckbox
                               isPaid={isPaid}
                               onSettle={() => setSettleTarget(row)}
@@ -1045,7 +1067,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                                 : 'text-sm font-semibold text-value-expense'
                         }`}
                       >
-                        {isInvoice ? formatCurrency(row.amount) : (
+                        {(isInvoice || isVirtualForecast) ? formatCurrency(row.amount) : (
                           <InlineEditAmount
                             value={row.amount}
                             onSave={(abs) => {
@@ -1058,17 +1080,17 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                       <td className={`px-4 ${isN2 ? 'py-2 text-[13px] text-text-muted/70' : 'py-2.5 text-sm'} whitespace-nowrap transition-colors duration-300 ${
                         !isN2 && (isPaid ? 'text-text-muted' : 'text-text-secondary')
                       }`}>
-                        {isInvoice ? formatDate(row.dueDate) : (
+                        {isVirtualForecast ? formatDueDateForDisplay(row) : (isInvoice ? formatDate(row.dueDate) : (
                           <InlineEditDate
                             value={row.dueDate}
                             onSave={(d) => onInlineUpdate({ ...row, dueDate: d })}
                           />
-                        )}
+                        ))}
                       </td>
                       <td className={`px-4 ${isN2 ? 'py-2 text-[13px] text-text-muted/70' : 'py-2.5 text-sm'} whitespace-nowrap transition-colors duration-300 ${
                         !isN2 && (isPaid ? 'text-text-secondary' : 'text-text-muted')
                       }`}>
-                        {isInvoice ? (row.settlementDate ? formatDate(row.settlementDate) : '—') : (
+                        {isVirtualForecast ? '—' : (isInvoice ? (row.settlementDate ? formatDate(row.settlementDate) : '—') : (
                           <InlineEditDate
                             value={row.settlementDate}
                             onSave={(d) => {
@@ -1078,7 +1100,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                               onInlineUpdate(updates)
                             }}
                           />
-                        )}
+                        ))}
                       </td>
                       <td className={`px-4 ${isN2 ? 'py-2 text-[13px] text-text-muted/70' : 'py-2.5 text-sm'} transition-colors duration-300 ${
                         !isN2 && (isPaid ? 'text-text-muted' : 'text-text-secondary')
@@ -1090,10 +1112,11 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                       }`}>
                         {classifyAny(row)}
                       </td>
+                      {!isPessoal && (
                       <td className={`px-4 ${isN2 ? 'py-2 text-[13px] text-text-muted/70' : 'py-2.5 text-sm'} transition-colors duration-300 ${
                         !isN2 && (isPaid ? 'text-text-muted' : 'text-text-secondary')
                       }`}>
-                        {isInvoice ? getOwnerLabel(row.accountId) : (
+                        {(isInvoice || isVirtualForecast) ? getOwnerLabel(row.accountId, accounts) : (
                           <InlineEditSelect
                             value={accounts.find((a) => a.id === row.accountId)?.owner || 'lenon'}
                             options={ownerInlineOptions}
@@ -1101,12 +1124,46 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                           />
                         )}
                       </td>
+                      )}
                       <td className={`px-4 ${isN2 ? 'py-2' : 'py-2.5'}`}>
                         <StatusBadge status={row.status} />
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                          {isInvoice ? (
+                          {isVirtualForecast ? (
+                            canManageVirtualForecast ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (sourceForecastEntry) onEdit(sourceForecastEntry)
+                                  }}
+                                  title="Editar previsão"
+                                  className="
+                                    p-1.5 rounded-lg
+                                    text-primary/70 hover:text-primary hover:bg-primary/5
+                                    transition-colors duration-150 cursor-pointer
+                                  "
+                                >
+                                  <Pencil size={15} strokeWidth={2} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (sourceForecastEntry) setDeleteTarget(sourceForecastEntry)
+                                  }}
+                                  title="Excluir previsão"
+                                  className="
+                                    p-1.5 rounded-lg
+                                    text-status-overdue-text/60 hover:text-status-overdue-text hover:bg-status-overdue-bg
+                                    transition-colors duration-150 cursor-pointer
+                                  "
+                                >
+                                  <Trash2 size={15} strokeWidth={2} />
+                                </button>
+                              </>
+                            ) : null
+                          ) : isInvoice ? (
                             <button
                               type="button"
                               onClick={() => onEdit(row)}
@@ -1207,6 +1264,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                   onChange={setTipoFilter}
                   colKey="tipo"
                 />
+                {!isPessoal && (
                 <ColumnFilterDropdown
                   label="RESPONSÁVEL"
                   value={ownerFilter}
@@ -1214,6 +1272,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                   onChange={setOwnerFilter}
                   colKey="owner"
                 />
+                )}
                 <ColumnFilterDropdown
                   label="STATUS"
                   value={statusFilter}
@@ -1230,7 +1289,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
               {overdueEntries.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={isPessoal ? 8 : 9}
                     className="px-4 py-10 text-center text-sm text-text-muted"
                   >
                     {hasActiveFilters
@@ -1251,7 +1310,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                       className={`
                         transition-all duration-300 ease-in-out
                         group
-                        ${isCardRow
+                        ${isInvoice
                           ? 'bg-[#D6EDE6] hover:bg-[#C2E4DA]'
                           : 'hover:bg-offwhite'
                         }
@@ -1303,6 +1362,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                       <td className="px-4 py-2.5 text-sm text-text-secondary">
                         {classifyAny(row)}
                       </td>
+                      {!isPessoal && (
                       <td className="px-4 py-2.5 text-sm text-text-secondary">
                         <InlineEditSelect
                           value={accounts.find((a) => a.id === row.accountId)?.owner || 'lenon'}
@@ -1310,6 +1370,7 @@ export default function DataTable({ entries, onEdit, onDelete, onSettle, onRever
                           onSave={(ownerKey) => handleOwnerChangeRequest(row, ownerKey)}
                         />
                       </td>
+                      )}
                       <td className="px-4 py-2.5">
                         <StatusBadge status={row.status} />
                       </td>

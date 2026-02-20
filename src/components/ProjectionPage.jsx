@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import {
-  ArrowLeftRight, Home, Building2, Plus, Trash2, Edit3, Check, X,
-  TrendingUp, TrendingDown, DollarSign, AlertTriangle,
-  BarChart3, Target, Layers, Leaf, Gem,
+  ArrowLeftRight, Home, Plus, Trash2, Edit3, Check, X,
+  DollarSign, AlertTriangle, ShoppingCart, LayoutDashboard,
+  BarChart3, Layers, Leaf, Gem, TrendingDown, Wallet,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
+  UtensilsCrossed, Sofa, BedDouble, Bath, WashingMachine, Monitor, Package,
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -52,48 +53,468 @@ const DEFAULT_NEW_ITEMS = [
 const DEFAULT_TANGO_ITEMS = []
 const DEFAULT_CONFORTAVEL_ITEMS = []
 
+const DEFAULT_SETUP_CATEGORIES = [
+  {
+    id: 'cozinha', label: 'Cozinha', items: [
+      { id: 'geladeira', label: 'Geladeira', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'fogao', label: 'Fogão', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'microondas', label: 'Microondas', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'maq-lavar-louca', label: 'Máquina de lavar louça', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'utensilios-cozinha', label: 'Utensílios de cozinha', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'panelas', label: 'Jogo de panelas', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'talheres-pratos', label: 'Talheres e pratos', kitnet: 0, mediano: 0, confortavel: 0 },
+    ],
+  },
+  {
+    id: 'sala', label: 'Sala', items: [
+      { id: 'sofa', label: 'Sofá', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'mesa-jantar', label: 'Mesa de jantar', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'cadeiras', label: 'Cadeiras', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'tv', label: 'TV', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'rack-tv', label: 'Rack / Painel de TV', kitnet: 0, mediano: 0, confortavel: 0 },
+    ],
+  },
+  {
+    id: 'quarto', label: 'Quarto', items: [
+      { id: 'cama', label: 'Cama', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'colchao', label: 'Colchão', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'guarda-roupa', label: 'Guarda-roupa', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'roupa-cama', label: 'Roupa de cama', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'travesseiros', label: 'Travesseiros', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'cortinas', label: 'Cortinas', kitnet: 0, mediano: 0, confortavel: 0 },
+    ],
+  },
+  {
+    id: 'banheiro', label: 'Banheiro', items: [
+      { id: 'toalhas', label: 'Jogo de toalhas', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'espelho', label: 'Espelho', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'acess-banheiro', label: 'Acessórios (saboneteira etc.)', kitnet: 0, mediano: 0, confortavel: 0 },
+    ],
+  },
+  {
+    id: 'lavanderia', label: 'Lavanderia', items: [
+      { id: 'maq-lavar-roupa', label: 'Máquina de lavar roupa', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'varal', label: 'Varal', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'ferro-passar', label: 'Ferro de passar', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'tabua-passar', label: 'Tábua de passar', kitnet: 0, mediano: 0, confortavel: 0 },
+    ],
+  },
+  {
+    id: 'escritorio', label: 'Escritório / Home Office', items: [
+      { id: 'mesa-escritorio', label: 'Mesa', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'cadeira-escritorio', label: 'Cadeira', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'luminaria', label: 'Luminária', kitnet: 0, mediano: 0, confortavel: 0 },
+    ],
+  },
+  {
+    id: 'utensilios-diversos', label: 'Utensílios Diversos', items: [
+      { id: 'aspirador', label: 'Aspirador de pó', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'lixeiras', label: 'Lixeiras', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'organizadores', label: 'Organizadores', kitnet: 0, mediano: 0, confortavel: 0 },
+      { id: 'cabides', label: 'Cabides', kitnet: 0, mediano: 0, confortavel: 0 },
+    ],
+  },
+]
+
 // Categorias excluídas dos cenários pessoais (gastos da casa dos pais que não teremos)
 const EXCLUDED_CATEGORIES = ['moradia', 'internet-telefone']
 
-const DEFAULT_SCENARIO_ESSENCIAL = [
-  { id: 'ess-aluguel', label: 'Aluguel (kitnet/studio)', amount: 0 },
-  { id: 'ess-condominio', label: 'Condomínio', amount: 0 },
-  { id: 'ess-energia', label: 'Energia', amount: 0 },
-  { id: 'ess-agua', label: 'Água', amount: 0 },
-  { id: 'ess-gas', label: 'Gás', amount: 0 },
-  { id: 'ess-internet', label: 'Internet', amount: 0 },
-  { id: 'ess-mercado', label: 'Mercado', amount: 0 },
-  { id: 'ess-limpeza', label: 'Produtos de limpeza', amount: 0 },
-]
-
-const DEFAULT_SCENARIO_CONFORTAVEL = [
-  { id: 'conf-aluguel', label: 'Aluguel (1 quarto)', amount: 0 },
-  { id: 'conf-condominio', label: 'Condomínio', amount: 0 },
-  { id: 'conf-energia', label: 'Energia', amount: 0 },
-  { id: 'conf-agua', label: 'Água', amount: 0 },
-  { id: 'conf-gas', label: 'Gás', amount: 0 },
-  { id: 'conf-internet', label: 'Internet', amount: 0 },
-  { id: 'conf-mercado', label: 'Mercado', amount: 0 },
-  { id: 'conf-limpeza', label: 'Produtos de limpeza', amount: 0 },
-  { id: 'conf-lazer', label: 'Lazer / Entretenimento', amount: 0 },
-  { id: 'conf-delivery', label: 'Delivery / Restaurantes', amount: 0 },
-]
-
-const DEFAULT_SCENARIOS = {
-  essencial: { name: 'Essencial', items: DEFAULT_SCENARIO_ESSENCIAL },
-  confortavel: { name: 'Confortável', items: DEFAULT_SCENARIO_CONFORTAVEL },
-}
 
 const SUB_TABS = [
+  { id: 'visao-geral', label: 'Visão Geral', icon: LayoutDashboard },
+  { id: 'caixa-necessario', label: 'Caixa Necessária', icon: Wallet },
   { id: 'projecao', label: 'Projeção 12 Meses', icon: BarChart3 },
   { id: 'cenarios', label: 'Cenários', icon: Layers },
-  { id: 'comparativo', label: 'Comparativo Mensal', icon: ArrowLeftRight },
+  { id: 'investimento', label: 'Investimento Inicial', icon: ShoppingCart },
 ]
 
 const COLOR_EM_CASA = '#EA580C'       // laranja — ficando na casa dos pais
 const COLOR_SIMPLES = '#3B82F6'       // azul claro — vida mais simples
 const COLOR_CONFORTAVEL = '#16A34A'   // verde — vida mais confortável
 const COLOR_INCOME = '#7C3AED'        // roxo — linha de renda
+const COLOR_KITNET = '#F59E0B'        // amarelo — kitnet
+const COLOR_MEDIANO = '#8B5CF6'       // violeta — apartamento mediano
+const COLOR_CONFORT_INV = '#0EA5E9'   // sky blue — apartamento confortável
+
+function calculateAverageExpenses(entries, totalSimplesExtra, totalConfortavelExtra) {
+  const allByMonth = {}
+  const filteredByMonth = {}
+  for (const e of entries) {
+    if (!e.dueDate || e.type !== 'Despesa') continue
+    const d = new Date(e.dueDate + 'T12:00:00')
+    const key = `${d.getFullYear()}-${d.getMonth()}`
+    allByMonth[key] = (allByMonth[key] || 0) + Math.abs(e.amount)
+    const cat = e.categoryId || 'outros-pessoal'
+    if (!EXCLUDED_CATEGORIES.includes(cat)) {
+      filteredByMonth[key] = (filteredByMonth[key] || 0) + Math.abs(e.amount)
+    }
+  }
+
+  const months = Object.keys(allByMonth)
+  const countAll = months.length || 1
+  const totalAll = Object.values(allByMonth).reduce((s, v) => s + v, 0)
+  const totalFiltered = Object.values(filteredByMonth).reduce((s, v) => s + v, 0)
+
+  return {
+    emCasa: totalAll / countAll,
+    baseFiltered: totalFiltered / countAll,
+    simples: (totalFiltered / countAll) + totalSimplesExtra,
+    confortavel: (totalFiltered / countAll) + totalConfortavelExtra,
+  }
+}
+
+function calculateSetupInvestmentTotals(setupCategories) {
+  let kitnet = 0
+  let mediano = 0
+  let confortavel = 0
+  for (const cat of setupCategories) {
+    for (const item of cat.items) {
+      kitnet += item.kitnet || 0
+      mediano += item.mediano || 0
+      confortavel += item.confortavel || 0
+    }
+  }
+  return { kitnet, mediano, confortavel }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sub-aba: Visão Geral                                                */
+/* ------------------------------------------------------------------ */
+
+function VisaoGeralTab({ entries, monthlyIncome, totalSimplesExtra, totalConfortavelExtra, setupCategories }) {
+  const avgExpenses = useMemo(() => {
+    return calculateAverageExpenses(entries, totalSimplesExtra, totalConfortavelExtra)
+  }, [entries, totalSimplesExtra, totalConfortavelExtra])
+
+  const invTotals = useMemo(() => {
+    return calculateSetupInvestmentTotals(setupCategories)
+  }, [setupCategories])
+
+  const sobraSimples = monthlyIncome - avgExpenses.simples
+  const sobraConfortavel = monthlyIncome - avgExpenses.confortavel
+  const sobraEmCasa = monthlyIncome - avgExpenses.emCasa
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-surface rounded-xl border border-border px-6 py-5">
+        <h3 className="text-[11px] font-semibold text-primary uppercase tracking-wider mb-1">
+          Resumo da Projeção
+        </h3>
+        <p className="text-[10px] text-text-muted">
+          Visão consolidada dos custos mensais e investimento inicial para sair de casa
+        </p>
+      </div>
+
+      {/* Gastos mensais médios */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <TrendingDown size={15} strokeWidth={2} className="text-primary" />
+          <h3 className="text-[11px] font-bold text-primary uppercase tracking-wider">Custo Mensal Médio</h3>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          {/* Em Casa */}
+          <div className="bg-surface rounded-xl border border-border overflow-hidden">
+            <div className="px-5 py-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Home size={14} strokeWidth={2} style={{ color: COLOR_EM_CASA }} />
+                <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Em Casa (atual)</p>
+              </div>
+              <p className="text-2xl font-bold tabular-nums" style={{ color: COLOR_EM_CASA }}>
+                {formatCurrency(avgExpenses.emCasa)}
+              </p>
+              {monthlyIncome > 0 && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-text-muted">Sobra mensal</span>
+                    <span className={`text-[12px] font-bold tabular-nums ${sobraEmCasa >= 0 ? 'text-value-income' : 'text-value-expense'}`}>
+                      {formatCurrency(sobraEmCasa)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-offwhite rounded-full overflow-hidden mt-2">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${Math.min((avgExpenses.emCasa / monthlyIncome) * 100, 100)}%`, backgroundColor: COLOR_EM_CASA }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-text-muted text-right mt-1">
+                    {((avgExpenses.emCasa / monthlyIncome) * 100).toFixed(0)}% da renda
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Vida Simples */}
+          <div className="bg-surface rounded-xl border border-border overflow-hidden">
+            <div className="px-5 py-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Leaf size={14} strokeWidth={2} style={{ color: COLOR_SIMPLES }} />
+                <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Vida Mais Simples</p>
+              </div>
+              <p className="text-2xl font-bold tabular-nums" style={{ color: COLOR_SIMPLES }}>
+                {formatCurrency(avgExpenses.simples)}
+              </p>
+              {monthlyIncome > 0 && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-text-muted">Sobra mensal</span>
+                    <span className={`text-[12px] font-bold tabular-nums ${sobraSimples >= 0 ? 'text-value-income' : 'text-value-expense'}`}>
+                      {formatCurrency(sobraSimples)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-offwhite rounded-full overflow-hidden mt-2">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${Math.min((avgExpenses.simples / monthlyIncome) * 100, 100)}%`, backgroundColor: COLOR_SIMPLES }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-text-muted text-right mt-1">
+                    {((avgExpenses.simples / monthlyIncome) * 100).toFixed(0)}% da renda
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Vida Confortável */}
+          <div className="bg-surface rounded-xl border border-border overflow-hidden">
+            <div className="px-5 py-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Gem size={14} strokeWidth={2} style={{ color: COLOR_CONFORTAVEL }} />
+                <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Vida Mais Confortável</p>
+              </div>
+              <p className="text-2xl font-bold tabular-nums" style={{ color: COLOR_CONFORTAVEL }}>
+                {formatCurrency(avgExpenses.confortavel)}
+              </p>
+              {monthlyIncome > 0 && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-text-muted">Sobra mensal</span>
+                    <span className={`text-[12px] font-bold tabular-nums ${sobraConfortavel >= 0 ? 'text-value-income' : 'text-value-expense'}`}>
+                      {formatCurrency(sobraConfortavel)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-offwhite rounded-full overflow-hidden mt-2">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${Math.min((avgExpenses.confortavel / monthlyIncome) * 100, 100)}%`, backgroundColor: COLOR_CONFORTAVEL }}
+                    />
+                  </div>
+                  <p className="text-[9px] text-text-muted text-right mt-1">
+                    {((avgExpenses.confortavel / monthlyIncome) * 100).toFixed(0)}% da renda
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Investimento Inicial */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Wallet size={15} strokeWidth={2} className="text-primary" />
+          <h3 className="text-[11px] font-bold text-primary uppercase tracking-wider">Investimento Inicial (Montagem)</h3>
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: 'Kitnet / Studio', total: invTotals.kitnet, color: COLOR_KITNET, icon: Home },
+            { label: 'Ap. Mediano', total: invTotals.mediano, color: COLOR_MEDIANO, icon: Layers },
+            { label: 'Ap. Confortável', total: invTotals.confortavel, color: COLOR_CONFORT_INV, icon: Gem },
+          ].map((s) => {
+            const meses = monthlyIncome > 0 ? s.total / monthlyIncome : 0
+            return (
+              <div key={s.label} className="bg-surface rounded-xl border border-border px-5 py-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <s.icon size={14} strokeWidth={2} style={{ color: s.color }} />
+                  <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">{s.label}</p>
+                </div>
+                <p className="text-2xl font-bold tabular-nums" style={{ color: s.color }}>
+                  {formatCurrency(s.total)}
+                </p>
+                {monthlyIncome > 0 && (
+                  <p className="text-[10px] mt-2 text-text-muted">
+                    ~{meses.toFixed(1)} meses de renda para juntar
+                  </p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Tabela comparativa final */}
+      <div className="bg-surface rounded-xl border border-border overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+            Comparativo Consolidado
+          </h3>
+          <p className="text-[10px] text-text-muted mt-0.5">Quanto custa cada cenário por mês + investimento para começar</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="bg-offwhite border-b border-border">
+                <th className="text-left px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider" />
+                <th className="text-right px-4 py-2.5 font-semibold uppercase tracking-wider" style={{ color: COLOR_EM_CASA }}>Em Casa</th>
+                <th className="text-right px-4 py-2.5 font-semibold uppercase tracking-wider" style={{ color: COLOR_SIMPLES }}>Vida Simples</th>
+                <th className="text-right px-4 py-2.5 font-semibold uppercase tracking-wider" style={{ color: COLOR_CONFORTAVEL }}>Vida Confortável</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-border">
+                <td className="px-4 py-3 font-semibold text-text-primary">Gasto mensal médio</td>
+                <td className="px-4 py-3 text-right tabular-nums font-medium" style={{ color: COLOR_EM_CASA }}>{formatCurrency(avgExpenses.emCasa)}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-medium" style={{ color: COLOR_SIMPLES }}>{formatCurrency(avgExpenses.simples)}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-medium" style={{ color: COLOR_CONFORTAVEL }}>{formatCurrency(avgExpenses.confortavel)}</td>
+              </tr>
+              {monthlyIncome > 0 && (
+                <tr className="border-b border-border bg-offwhite/50">
+                  <td className="px-4 py-3 font-semibold text-text-primary">Sobra mensal</td>
+                  <td className={`px-4 py-3 text-right tabular-nums font-medium ${sobraEmCasa >= 0 ? 'text-value-income' : 'text-value-expense'}`}>{formatCurrency(sobraEmCasa)}</td>
+                  <td className={`px-4 py-3 text-right tabular-nums font-medium ${sobraSimples >= 0 ? 'text-value-income' : 'text-value-expense'}`}>{formatCurrency(sobraSimples)}</td>
+                  <td className={`px-4 py-3 text-right tabular-nums font-medium ${sobraConfortavel >= 0 ? 'text-value-income' : 'text-value-expense'}`}>{formatCurrency(sobraConfortavel)}</td>
+                </tr>
+              )}
+              <tr className="border-b border-border">
+                <td className="px-4 py-3 font-semibold text-text-primary">Investimento inicial</td>
+                <td className="px-4 py-3 text-right tabular-nums text-text-muted">—</td>
+                <td className="px-4 py-3 text-right tabular-nums font-medium" style={{ color: COLOR_MEDIANO }}>{formatCurrency(invTotals.mediano)}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-medium" style={{ color: COLOR_CONFORT_INV }}>{formatCurrency(invTotals.confortavel)}</td>
+              </tr>
+              {monthlyIncome > 0 && (
+                <tr className="bg-offwhite/50">
+                  <td className="px-4 py-3 font-semibold text-text-primary">Meses para juntar investimento</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-text-muted">—</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-text-secondary">
+                    {sobraSimples > 0 ? `${(invTotals.mediano / sobraSimples).toFixed(1)} meses` : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-text-secondary">
+                    {sobraConfortavel > 0 ? `${(invTotals.confortavel / sobraConfortavel).toFixed(1)} meses` : '—'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CaixaNecessarioTab({ entries, totalSimplesExtra, totalConfortavelExtra, setupCategories }) {
+  const avgExpenses = useMemo(
+    () => calculateAverageExpenses(entries, totalSimplesExtra, totalConfortavelExtra),
+    [entries, totalSimplesExtra, totalConfortavelExtra],
+  )
+  const invTotals = useMemo(
+    () => calculateSetupInvestmentTotals(setupCategories),
+    [setupCategories],
+  )
+
+  const reserveRows = [3, 6, 12].map((months) => {
+    const simples = avgExpenses.simples * months
+    const confortavel = avgExpenses.confortavel * months
+    const simplesComMediano = simples + invTotals.mediano
+    const confortavelComConfortavel = confortavel + invTotals.confortavel
+    return {
+      months,
+      simples,
+      confortavel,
+      simplesComMediano,
+      confortavelComConfortavel,
+    }
+  })
+  const metaPassoConforto = reserveRows.find((r) => r.months === 3)?.confortavelComConfortavel || 0
+  const metaPassoSimples = reserveRows.find((r) => r.months === 3)?.simplesComMediano || 0
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-surface rounded-xl border border-border px-6 py-5">
+        <h3 className="text-[11px] font-semibold text-primary uppercase tracking-wider mb-1">
+          Caixa Necessária
+        </h3>
+        <p className="text-[10px] text-text-muted">
+          Quanto você precisa ter em conta para dar o passo com segurança, já somando reserva e moradia.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-surface rounded-xl border border-border px-5 py-4">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Meta para dar o passo com conforto</p>
+          <p className="text-[11px] text-text-secondary mb-2">3 meses de vida confortável + AP confortável</p>
+          <p className="text-[22px] font-bold tabular-nums" style={{ color: COLOR_CONFORTAVEL }}>
+            {formatCurrency(metaPassoConforto)}
+          </p>
+        </div>
+        <div className="bg-surface rounded-xl border border-border px-5 py-4">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Meta para passo mais simples</p>
+          <p className="text-[11px] text-text-secondary mb-2">3 meses de vida simples + AP mediano</p>
+          <p className="text-[22px] font-bold tabular-nums" style={{ color: COLOR_SIMPLES }}>
+            {formatCurrency(metaPassoSimples)}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-surface rounded-xl border border-border px-4 py-3">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Vida mais simples</p>
+          <p className="text-[14px] font-semibold tabular-nums" style={{ color: COLOR_SIMPLES }}>
+            {formatCurrency(avgExpenses.simples)}/mês
+          </p>
+        </div>
+        <div className="bg-surface rounded-xl border border-border px-4 py-3">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Vida confortável</p>
+          <p className="text-[14px] font-semibold tabular-nums" style={{ color: COLOR_CONFORTAVEL }}>
+            {formatCurrency(avgExpenses.confortavel)}/mês
+          </p>
+        </div>
+        <div className="bg-surface rounded-xl border border-border px-4 py-3">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">AP mediano</p>
+          <p className="text-[14px] font-semibold tabular-nums" style={{ color: COLOR_MEDIANO }}>
+            +{formatCurrency(invTotals.mediano)}
+          </p>
+        </div>
+        <div className="bg-surface rounded-xl border border-border px-4 py-3">
+          <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">AP confortável</p>
+          <p className="text-[14px] font-semibold tabular-nums" style={{ color: COLOR_CONFORT_INV }}>
+            +{formatCurrency(invTotals.confortavel)}
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-surface rounded-xl border border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="bg-offwhite border-b border-border">
+                <th className="text-left px-4 py-3 font-semibold text-text-secondary uppercase tracking-wider">Reserva</th>
+                <th className="text-right px-4 py-3 font-semibold uppercase tracking-wider" style={{ color: COLOR_SIMPLES }}>Vida simples</th>
+                <th className="text-right px-4 py-3 font-semibold uppercase tracking-wider" style={{ color: COLOR_CONFORTAVEL }}>Vida confortável</th>
+                <th className="text-right px-4 py-3 font-semibold uppercase tracking-wider" style={{ color: COLOR_MEDIANO }}>Simples + AP mediano</th>
+                <th className="text-right px-4 py-3 font-semibold uppercase tracking-wider" style={{ color: COLOR_CONFORT_INV }}>Confortável + AP confortável</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reserveRows.map((row, idx) => (
+                <tr key={row.months} className={`border-b border-border ${idx % 2 === 0 ? '' : 'bg-offwhite/40'}`}>
+                  <td className="px-4 py-3 font-semibold text-text-primary">{row.months} meses</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(row.simples)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(row.confortavel)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(row.simplesComMediano)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(row.confortavelComConfortavel)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /* ------------------------------------------------------------------ */
 /*  Tooltip do gráfico de projeção                                      */
@@ -454,267 +875,10 @@ function ProjecaoTab({ entries, monthlyIncome, totalSimplesExtra, totalConfortav
 }
 
 /* ------------------------------------------------------------------ */
-/*  Sub-aba: Cenários                                                    */
+/*  Sub-aba: Cenários (Vida mais simples x Vida mais confortável)        */
 /* ------------------------------------------------------------------ */
 
-function ScenarioColumn({ scenario, scenarioKey, icon: Icon, color, monthlyIncome, avgMonthlyExpenses, onUpdate, onDelete, onAdd }) {
-  const total = scenario.items.reduce((s, i) => s + (i.amount || 0), 0)
-  const totalComAtual = avgMonthlyExpenses + total
-  const sobra = monthlyIncome - totalComAtual
-  const pct = monthlyIncome > 0 ? (totalComAtual / monthlyIncome) * 100 : 0
-
-  return (
-    <div className="bg-surface rounded-xl border border-border overflow-hidden flex flex-col">
-      <div className="px-5 py-4 border-b border-border bg-offwhite">
-        <div className="flex items-center gap-2.5">
-          <Icon size={16} strokeWidth={1.8} className="shrink-0" style={{ color }} />
-          <div>
-            <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>
-              {scenario.name}
-            </h3>
-            <p className="text-[10px] text-text-muted">
-              {scenarioKey === 'essencial' ? 'Vida simples e econômica' : 'Vida mais confortável'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="px-3 py-3 flex-1 max-h-[480px] overflow-y-auto">
-        {/* Gastos base — média dinâmica 12 meses */}
-        <div className="mb-3">
-          <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider px-3 mb-1.5">
-            Gastos mensais projetados
-          </p>
-          <div className="flex items-center gap-2 py-2 px-3 bg-offwhite/60 rounded-lg">
-            <span className="flex-1 min-w-0 text-[12px] text-text-primary">Média mensal (próx. 12 meses)</span>
-            <span className="text-[12px] font-semibold tabular-nums text-text-primary shrink-0">
-              {formatCurrency(avgMonthlyExpenses)}
-            </span>
-          </div>
-          <div className="mx-3 my-2 border-t border-dashed border-border" />
-        </div>
-
-        {/* Itens do cenario (editaveis) */}
-        <div>
-          <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider px-3 mb-1.5">
-            Custos de moradia
-          </p>
-          <div className="space-y-0.5">
-            {scenario.items.map((item) => (
-              <ProjectionItem
-                key={item.id}
-                item={item}
-                onUpdate={(updated) => onUpdate(scenarioKey, updated)}
-                onDelete={(id) => onDelete(scenarioKey, id)}
-                editable
-              />
-            ))}
-          </div>
-          <button
-            onClick={() => onAdd(scenarioKey)}
-            className="flex items-center gap-2 w-full px-3 py-2 mt-2 text-[11px] font-medium text-primary hover:bg-offwhite rounded-lg transition-colors cursor-pointer"
-          >
-            <Plus size={14} strokeWidth={2} />
-            <span>Adicionar item</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Rodapé com totais */}
-      <div className="border-t border-border bg-offwhite px-5 py-3.5 space-y-2.5 mt-auto">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Novos custos</span>
-          <span className="text-[13px] font-bold tabular-nums" style={{ color }}>
-            {formatCurrency(total)}
-          </span>
-        </div>
-        <div className="border-t border-dashed border-border pt-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Total mensal</span>
-            <span className="text-base font-bold tabular-nums text-value-expense">
-              {formatCurrency(totalComAtual)}
-            </span>
-          </div>
-        </div>
-        {monthlyIncome > 0 && (
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-text-muted">Sobra do pró-labore</span>
-            <span className={`text-[13px] font-bold tabular-nums ${sobra >= 0 ? 'text-value-income' : 'text-value-expense'}`}>
-              {formatCurrency(sobra)}
-            </span>
-          </div>
-        )}
-        {monthlyIncome > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] text-text-muted">Comprometimento</span>
-              <span className="text-[10px] font-bold tabular-nums text-text-primary">{pct.toFixed(1)}%</span>
-            </div>
-            <div className="h-2 bg-white rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{
-                  width: `${Math.min(pct, 100)}%`,
-                  backgroundColor: pct > 80 ? '#DC2626' : pct > 60 ? '#D97706' : color,
-                }}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function CenariosTab({ scenarios, avgMonthlyExpenses, monthlyIncome, onUpdateItem, onDeleteItem, onAddItem }) {
-  const essencial = scenarios.essencial
-  const confortavel = scenarios.confortavel
-
-  const totalEssencial = avgMonthlyExpenses + essencial.items.reduce((s, i) => s + (i.amount || 0), 0)
-  const totalConfortavel = avgMonthlyExpenses + confortavel.items.reduce((s, i) => s + (i.amount || 0), 0)
-  const diff = totalConfortavel - totalEssencial
-
-  return (
-    <div className="space-y-6">
-      {/* Duas colunas lado a lado */}
-      <div className="grid grid-cols-2 gap-5">
-        <ScenarioColumn
-          scenario={essencial}
-          scenarioKey="essencial"
-          icon={Leaf}
-          color="#16A34A"
-          monthlyIncome={monthlyIncome}
-          avgMonthlyExpenses={avgMonthlyExpenses}
-          onUpdate={onUpdateItem}
-          onDelete={onDeleteItem}
-          onAdd={onAddItem}
-        />
-        <ScenarioColumn
-          scenario={confortavel}
-          scenarioKey="confortavel"
-          icon={Gem}
-          color="#7C3AED"
-          monthlyIncome={monthlyIncome}
-          avgMonthlyExpenses={avgMonthlyExpenses}
-          onUpdate={onUpdateItem}
-          onDelete={onDeleteItem}
-          onAdd={onAddItem}
-        />
-      </div>
-
-      {/* Resumo comparativo dos cenários */}
-      <div className="bg-surface rounded-xl border border-border overflow-hidden">
-        <div className="px-6 py-4 border-b border-border">
-          <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-            Comparativo dos Cenários
-          </h3>
-          <p className="text-[10px] text-text-muted mt-0.5">
-            Diferença entre vida essencial e confortável
-          </p>
-        </div>
-
-        <div className="grid grid-cols-4 gap-px bg-border">
-          <div className="bg-surface px-5 py-4">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign size={13} strokeWidth={2} className="text-primary" />
-              <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider">Pró-labore</p>
-            </div>
-            <p className="text-lg font-bold tabular-nums text-primary">{formatCurrency(monthlyIncome)}</p>
-          </div>
-
-          <div className="bg-surface px-5 py-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Leaf size={13} strokeWidth={2} className="text-green-600" />
-              <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider">Total Essencial</p>
-            </div>
-            <p className="text-lg font-bold tabular-nums text-green-600">{formatCurrency(totalEssencial)}</p>
-            {monthlyIncome > 0 && (
-              <p className={`text-[10px] mt-1 font-medium ${monthlyIncome - totalEssencial >= 0 ? 'text-value-income' : 'text-value-expense'}`}>
-                Sobra: {formatCurrency(monthlyIncome - totalEssencial)}
-              </p>
-            )}
-          </div>
-
-          <div className="bg-surface px-5 py-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Gem size={13} strokeWidth={2} className="text-purple-600" />
-              <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider">Total Confortável</p>
-            </div>
-            <p className="text-lg font-bold tabular-nums text-purple-600">{formatCurrency(totalConfortavel)}</p>
-            {monthlyIncome > 0 && (
-              <p className={`text-[10px] mt-1 font-medium ${monthlyIncome - totalConfortavel >= 0 ? 'text-value-income' : 'text-value-expense'}`}>
-                Sobra: {formatCurrency(monthlyIncome - totalConfortavel)}
-              </p>
-            )}
-          </div>
-
-          <div className="bg-surface px-5 py-4">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle size={13} strokeWidth={2} className="text-amber-500" />
-              <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider">Diferença</p>
-            </div>
-            <p className="text-lg font-bold tabular-nums text-amber-600">+{formatCurrency(diff)}</p>
-            <p className="text-[10px] text-text-muted mt-1">
-              conforto custa a mais/mês
-            </p>
-          </div>
-        </div>
-
-        {/* Barras comparativas */}
-        {monthlyIncome > 0 && (
-          <div className="px-6 py-5 space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <Leaf size={12} strokeWidth={2} className="text-green-600" />
-                  <span className="text-[10px] font-semibold text-text-secondary">Essencial</span>
-                </div>
-                <span className="text-[10px] font-bold tabular-nums text-text-primary">
-                  {(monthlyIncome > 0 ? (totalEssencial / monthlyIncome) * 100 : 0).toFixed(1)}%
-                </span>
-              </div>
-              <div className="h-2.5 bg-offwhite rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min((totalEssencial / monthlyIncome) * 100, 100)}%`,
-                    backgroundColor: '#16A34A',
-                  }}
-                />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <Gem size={12} strokeWidth={2} className="text-purple-600" />
-                  <span className="text-[10px] font-semibold text-text-secondary">Confortável</span>
-                </div>
-                <span className="text-[10px] font-bold tabular-nums text-text-primary">
-                  {(monthlyIncome > 0 ? (totalConfortavel / monthlyIncome) * 100 : 0).toFixed(1)}%
-                </span>
-              </div>
-              <div className="h-2.5 bg-offwhite rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.min((totalConfortavel / monthlyIncome) * 100, 100)}%`,
-                    backgroundColor: '#7C3AED',
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Sub-aba: Comparativo Mensal (conteúdo original)                     */
-/* ------------------------------------------------------------------ */
-
-function ComparativoTab({
+function CenariosTab({
   entries, monthlyIncome,
   tangoItems, onUpdateTangoItem, onDeleteTangoItem, onAddTangoItem,
   confortavelItems, onUpdateConfortavelItem, onDeleteConfortavelItem, onAddConfortavelItem,
@@ -723,16 +887,24 @@ function ComparativoTab({
   const [accordionOpen, setAccordionOpen] = useState(false)
   const [accordionOpenConf, setAccordionOpenConf] = useState(false)
 
-  // Despesas filtradas do mês selecionado (excluindo moradia e internet dos pais)
   const filteredExpenses = useMemo(() => {
     const y = 2026
-    const m = selectedMonth
 
-    const monthEntries = entries.filter((e) => {
-      if (!e.dueDate || e.type !== 'Despesa') return false
-      const d = new Date(e.dueDate + 'T12:00:00')
-      return d.getFullYear() === y && d.getMonth() === m
-    })
+    const getMonthExpenses = (month) =>
+      entries.filter((e) => {
+        if (!e.dueDate || e.type !== 'Despesa') return false
+        const d = new Date(e.dueDate + 'T12:00:00')
+        return d.getFullYear() === y && d.getMonth() === month
+      })
+
+    let monthEntries = getMonthExpenses(selectedMonth)
+
+    if (monthEntries.length === 0) {
+      for (let fb = selectedMonth - 1; fb >= 0; fb--) {
+        const fallback = getMonthExpenses(fb)
+        if (fallback.length > 0) { monthEntries = fallback; break }
+      }
+    }
 
     const byCategory = {}
     for (const e of monthEntries) {
@@ -1088,6 +1260,392 @@ function ComparativoTab({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Sub-aba: Investimento Inicial (tabela unificada)                    */
+/* ------------------------------------------------------------------ */
+
+function CurrencyInput({ value, onChange, color }) {
+  const [editing, setEditing] = useState(false)
+  const [raw, setRaw] = useState('')
+
+  const handleStart = () => { setRaw(String(value || '')); setEditing(true) }
+  const handleSave = () => { onChange(parseFloat(raw) || 0); setEditing(false) }
+  const handleKey = (e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false) }
+
+  if (editing) {
+    return (
+      <input
+        type="number"
+        value={raw}
+        onChange={(e) => setRaw(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKey}
+        className="w-full text-[11px] bg-white border border-border rounded px-2 py-1 text-right focus:outline-none focus:ring-1 focus:ring-primary tabular-nums"
+        autoFocus
+        step="0.01"
+        min="0"
+      />
+    )
+  }
+
+  return (
+    <button
+      onClick={handleStart}
+      className={`w-full text-[11px] tabular-nums text-right px-2 py-1 rounded hover:bg-offwhite transition-colors cursor-pointer ${value > 0 ? 'font-semibold' : 'text-text-muted'}`}
+      style={value > 0 ? { color } : undefined}
+    >
+      {value > 0 ? formatCurrency(value) : '—'}
+    </button>
+  )
+}
+
+function InvestimentoInicialTab({ monthlyIncome, setupCategories, onUpdateSetup }) {
+  const totals = useMemo(() => {
+    let kitnet = 0, mediano = 0, confortavel = 0
+    for (const cat of setupCategories) {
+      for (const item of cat.items) {
+        kitnet += item.kitnet || 0
+        mediano += item.mediano || 0
+        confortavel += item.confortavel || 0
+      }
+    }
+    return { kitnet, mediano, confortavel }
+  }, [setupCategories])
+
+  const maxTotal = Math.max(totals.kitnet, totals.mediano, totals.confortavel, 1)
+
+  const handleValueChange = (catId, itemId, scenario, value) => {
+    const next = setupCategories.map((cat) => {
+      if (cat.id !== catId) return cat
+      return {
+        ...cat,
+        items: cat.items.map((item) => {
+          if (item.id !== itemId) return item
+          return { ...item, [scenario]: value }
+        }),
+      }
+    })
+    onUpdateSetup(next)
+  }
+
+  const handleAddItem = (catId) => {
+    const next = setupCategories.map((cat) => {
+      if (cat.id !== catId) return cat
+      return {
+        ...cat,
+        items: [...cat.items, { id: generateId(), label: 'Novo item', kitnet: 0, mediano: 0, confortavel: 0 }],
+      }
+    })
+    onUpdateSetup(next)
+  }
+
+  const handleDeleteItem = (catId, itemId) => {
+    const next = setupCategories.map((cat) => {
+      if (cat.id !== catId) return cat
+      return { ...cat, items: cat.items.filter((i) => i.id !== itemId) }
+    })
+    onUpdateSetup(next)
+  }
+
+  const handleRenameItem = (catId, itemId, label) => {
+    const next = setupCategories.map((cat) => {
+      if (cat.id !== catId) return cat
+      return {
+        ...cat,
+        items: cat.items.map((i) => (i.id === itemId ? { ...i, label } : i)),
+      }
+    })
+    onUpdateSetup(next)
+  }
+
+  const handleRenameCategory = (catId, newLabel) => {
+    const next = setupCategories.map((cat) => {
+      if (cat.id !== catId) return cat
+      return { ...cat, label: newLabel }
+    })
+    onUpdateSetup(next)
+  }
+
+  const handleDeleteCategory = (catId) => {
+    const next = setupCategories.filter((cat) => cat.id !== catId)
+    onUpdateSetup(next)
+  }
+
+  const handleAddCategory = () => {
+    const next = [...setupCategories, {
+      id: generateId(),
+      label: 'Nova categoria',
+      items: [{ id: generateId(), label: 'Novo item', kitnet: 0, mediano: 0, confortavel: 0 }],
+    }]
+    onUpdateSetup(next)
+  }
+
+  const scenarios = [
+    { key: 'kitnet', label: 'Kitnet / Studio', color: COLOR_KITNET, total: totals.kitnet },
+    { key: 'mediano', label: 'Ap. Mediano', color: COLOR_MEDIANO, total: totals.mediano },
+    { key: 'confortavel', label: 'Ap. Confortável', color: COLOR_CONFORT_INV, total: totals.confortavel },
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Cards resumo */}
+      <div className="grid grid-cols-3 gap-4">
+        {scenarios.map((s) => {
+          const meses = monthlyIncome > 0 ? s.total / monthlyIncome : 0
+          return (
+            <div key={s.key} className="bg-surface rounded-xl border border-border px-5 py-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: s.color }} />
+                <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider">{s.label}</p>
+              </div>
+              <p className="text-lg font-bold tabular-nums" style={{ color: s.color }}>
+                {formatCurrency(s.total)}
+              </p>
+              {monthlyIncome > 0 && (
+                <p className="text-[10px] mt-1 text-text-muted">~{meses.toFixed(1)} meses de renda</p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Barra comparativa */}
+      <div className="bg-surface rounded-xl border border-border px-6 py-5">
+        <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-4">
+          Comparativo de Investimento
+        </h3>
+        <div className="space-y-4">
+          {scenarios.map((s) => (
+            <div key={s.key}>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-semibold text-text-secondary">{s.label}</span>
+                <span className="text-[11px] font-bold tabular-nums text-text-primary">{formatCurrency(s.total)}</span>
+              </div>
+              <div className="h-2.5 bg-offwhite rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min((s.total / maxTotal) * 100, 100)}%`, backgroundColor: s.color }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tabela unificada */}
+      <div className="bg-surface rounded-xl border border-border overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+            Montagem do Lar — Comparativo por Item
+          </h3>
+          <p className="text-[10px] text-text-muted mt-0.5">Clique no valor para editar. Itens que não precisa comprar deixe como "—".</p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="bg-offwhite border-b border-border">
+                <th className="text-left px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider w-[260px]">Item</th>
+                <th className="text-right px-3 py-2.5 font-semibold uppercase tracking-wider w-[140px]" style={{ color: COLOR_KITNET }}>Kitnet / Studio</th>
+                <th className="text-right px-3 py-2.5 font-semibold uppercase tracking-wider w-[140px]" style={{ color: COLOR_MEDIANO }}>Ap. Mediano</th>
+                <th className="text-right px-3 py-2.5 font-semibold uppercase tracking-wider w-[140px]" style={{ color: COLOR_CONFORT_INV }}>Ap. Confortável</th>
+                <th className="w-8" />
+              </tr>
+            </thead>
+            <tbody>
+              {setupCategories.map((cat) => {
+                const catTotals = { kitnet: 0, mediano: 0, confortavel: 0 }
+                for (const item of cat.items) {
+                  catTotals.kitnet += item.kitnet || 0
+                  catTotals.mediano += item.mediano || 0
+                  catTotals.confortavel += item.confortavel || 0
+                }
+                return (
+                  <CategoryBlock
+                    key={cat.id}
+                    cat={cat}
+                    catTotals={catTotals}
+                    onValueChange={handleValueChange}
+                    onAddItem={handleAddItem}
+                    onDeleteItem={handleDeleteItem}
+                    onRenameItem={handleRenameItem}
+                    onRenameCategory={handleRenameCategory}
+                    onDeleteCategory={handleDeleteCategory}
+                  />
+                )
+              })}
+
+              {/* Total geral */}
+              <tr className="bg-offwhite font-semibold border-t-2 border-border">
+                <td className="px-4 py-3 text-text-primary uppercase tracking-wider text-[10px]">Total Geral</td>
+                <td className="px-3 py-3 text-right tabular-nums" style={{ color: COLOR_KITNET }}>{formatCurrency(totals.kitnet)}</td>
+                <td className="px-3 py-3 text-right tabular-nums" style={{ color: COLOR_MEDIANO }}>{formatCurrency(totals.mediano)}</td>
+                <td className="px-3 py-3 text-right tabular-nums" style={{ color: COLOR_CONFORT_INV }}>{formatCurrency(totals.confortavel)}</td>
+                <td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="px-4 py-3 border-t border-border">
+          <button
+            onClick={handleAddCategory}
+            className="flex items-center gap-2 px-3 py-2 text-[11px] font-medium text-primary hover:bg-offwhite rounded-lg transition-colors cursor-pointer"
+          >
+            <Plus size={14} strokeWidth={2} />
+            <span>Adicionar categoria</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const CATEGORY_ICONS = {
+  cozinha: UtensilsCrossed,
+  sala: Sofa,
+  quarto: BedDouble,
+  banheiro: Bath,
+  lavanderia: WashingMachine,
+  escritorio: Monitor,
+  'utensilios-diversos': Package,
+}
+
+const CATEGORY_COLORS = {
+  cozinha: '#E11D48',
+  sala: '#7C3AED',
+  quarto: '#2563EB',
+  banheiro: '#0891B2',
+  lavanderia: '#059669',
+  escritorio: '#D97706',
+  'utensilios-diversos': '#6B7280',
+}
+
+function CategoryBlock({ cat, catTotals, onValueChange, onAddItem, onDeleteItem, onRenameItem, onRenameCategory, onDeleteCategory }) {
+  const [editingLabel, setEditingLabel] = useState(null)
+  const [labelInput, setLabelInput] = useState('')
+  const [editingCatName, setEditingCatName] = useState(false)
+  const [catNameInput, setCatNameInput] = useState('')
+
+  const startRename = (itemId, currentLabel) => { setEditingLabel(itemId); setLabelInput(currentLabel) }
+  const saveRename = (catId, itemId) => { onRenameItem(catId, itemId, labelInput.trim() || 'Item'); setEditingLabel(null) }
+
+  const startRenameCat = () => { setCatNameInput(cat.label); setEditingCatName(true) }
+  const saveRenameCat = () => { onRenameCategory(cat.id, catNameInput.trim() || 'Categoria'); setEditingCatName(false) }
+
+  const CatIcon = CATEGORY_ICONS[cat.id] || Package
+  const catColor = CATEGORY_COLORS[cat.id] || '#6B7280'
+
+  return (
+    <>
+      {/* Header da categoria */}
+      <tr className="border-t-2 border-border" style={{ backgroundColor: `${catColor}08` }}>
+        <td colSpan={4} className="px-4 py-2.5">
+          <div className="flex items-center gap-2.5 group/cat">
+            <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: `${catColor}15` }}>
+              <CatIcon size={13} strokeWidth={2} style={{ color: catColor }} />
+            </div>
+            {editingCatName ? (
+              <input
+                type="text"
+                value={catNameInput}
+                onChange={(e) => setCatNameInput(e.target.value)}
+                onBlur={saveRenameCat}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveRenameCat(); if (e.key === 'Escape') setEditingCatName(false) }}
+                className="flex-1 text-[11px] font-bold bg-white border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary uppercase tracking-wider"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={startRenameCat}
+                className="text-[11px] font-bold uppercase tracking-wider hover:underline transition-colors cursor-pointer"
+                style={{ color: catColor }}
+              >
+                {cat.label}
+              </button>
+            )}
+            <button
+              onClick={() => onDeleteCategory(cat.id)}
+              className="p-1 text-text-muted hover:text-red-600 rounded opacity-0 group-hover/cat:opacity-100 transition-all cursor-pointer ml-auto"
+              title="Remover categoria"
+            >
+              <Trash2 size={11} strokeWidth={2} />
+            </button>
+          </div>
+        </td>
+        <td style={{ backgroundColor: `${catColor}08` }} />
+      </tr>
+
+      {/* Itens */}
+      {cat.items.map((item, idx) => (
+        <tr key={item.id} className={`border-b border-border/50 group hover:bg-offwhite/40 transition-colors ${idx % 2 === 0 ? '' : 'bg-offwhite/20'}`}>
+          <td className="py-1.5" style={{ paddingLeft: '3rem' }}>
+            {editingLabel === item.id ? (
+              <input
+                type="text"
+                value={labelInput}
+                onChange={(e) => setLabelInput(e.target.value)}
+                onBlur={() => saveRename(cat.id, item.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter') saveRename(cat.id, item.id); if (e.key === 'Escape') setEditingLabel(null) }}
+                className="w-full text-[11px] bg-white border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+            ) : (
+              <button
+                onClick={() => startRename(item.id, item.label)}
+                className="text-[11px] text-text-primary hover:text-primary transition-colors cursor-pointer text-left"
+              >
+                {item.label}
+              </button>
+            )}
+          </td>
+          <td className="px-3 py-1.5">
+            <CurrencyInput value={item.kitnet} onChange={(v) => onValueChange(cat.id, item.id, 'kitnet', v)} color={COLOR_KITNET} />
+          </td>
+          <td className="px-3 py-1.5">
+            <CurrencyInput value={item.mediano} onChange={(v) => onValueChange(cat.id, item.id, 'mediano', v)} color={COLOR_MEDIANO} />
+          </td>
+          <td className="px-3 py-1.5">
+            <CurrencyInput value={item.confortavel} onChange={(v) => onValueChange(cat.id, item.id, 'confortavel', v)} color={COLOR_CONFORT_INV} />
+          </td>
+          <td className="px-1 py-1.5">
+            <button
+              onClick={() => onDeleteItem(cat.id, item.id)}
+              className="p-1 text-text-muted hover:text-red-600 rounded opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+            >
+              <Trash2 size={11} strokeWidth={2} />
+            </button>
+          </td>
+        </tr>
+      ))}
+
+      {/* Subtotal + botão adicionar */}
+      <tr className="border-b border-border" style={{ backgroundColor: `${catColor}06` }}>
+        <td className="py-2" style={{ paddingLeft: '3rem' }}>
+          <button
+            onClick={() => onAddItem(cat.id)}
+            className="flex items-center gap-1.5 text-[10px] font-medium transition-colors cursor-pointer"
+            style={{ color: catColor }}
+          >
+            <Plus size={12} strokeWidth={2} />
+            <span>Adicionar item</span>
+          </button>
+        </td>
+        <td className="px-3 py-2 text-right text-[10px] font-bold tabular-nums" style={{ color: catTotals.kitnet > 0 ? COLOR_KITNET : undefined }}>
+          {catTotals.kitnet > 0 ? formatCurrency(catTotals.kitnet) : ''}
+        </td>
+        <td className="px-3 py-2 text-right text-[10px] font-bold tabular-nums" style={{ color: catTotals.mediano > 0 ? COLOR_MEDIANO : undefined }}>
+          {catTotals.mediano > 0 ? formatCurrency(catTotals.mediano) : ''}
+        </td>
+        <td className="px-3 py-2 text-right text-[10px] font-bold tabular-nums" style={{ color: catTotals.confortavel > 0 ? COLOR_CONFORT_INV : undefined }}>
+          {catTotals.confortavel > 0 ? formatCurrency(catTotals.confortavel) : ''}
+        </td>
+        <td />
+      </tr>
+    </>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Componente principal                                                */
 /* ------------------------------------------------------------------ */
 
@@ -1095,12 +1653,13 @@ export default function ProjectionPage({ entries }) {
   const { config } = useWorkspace()
   const prefix = config.collectionsPrefix
 
-  const [activeTab, setActiveTab] = useState('projecao')
+  const [activeTab, setActiveTab] = useState('visao-geral')
   const [projectionData, setProjectionData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editingIncome, setEditingIncome] = useState(false)
   const [incomeInput, setIncomeInput] = useState('')
+  const [saveError, setSaveError] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -1108,17 +1667,27 @@ export default function ProjectionPage({ entries }) {
     fetchProjectionData(prefix).then((data) => {
       if (cancelled) return
       if (data) {
-        if (!data.scenarios) data.scenarios = DEFAULT_SCENARIOS
-        if (!data.tangoItems) data.tangoItems = DEFAULT_TANGO_ITEMS
-        if (!data.confortavelItems) data.confortavelItems = DEFAULT_CONFORTAVEL_ITEMS
-        setProjectionData(data)
+        setProjectionData({
+          monthlyIncome: data.monthlyIncome ?? 0,
+          newItems: Array.isArray(data.newItems) ? data.newItems : DEFAULT_NEW_ITEMS,
+          tangoItems: Array.isArray(data.tangoItems) ? data.tangoItems : DEFAULT_TANGO_ITEMS,
+          confortavelItems: Array.isArray(data.confortavelItems) ? data.confortavelItems : DEFAULT_CONFORTAVEL_ITEMS,
+          setupCategories: Array.isArray(data.setupCategories) ? data.setupCategories : DEFAULT_SETUP_CATEGORIES,
+        })
       } else {
-        setProjectionData({ monthlyIncome: 0, newItems: DEFAULT_NEW_ITEMS, scenarios: DEFAULT_SCENARIOS, tangoItems: DEFAULT_TANGO_ITEMS, confortavelItems: DEFAULT_CONFORTAVEL_ITEMS })
+        setProjectionData({
+          monthlyIncome: 0, newItems: DEFAULT_NEW_ITEMS, tangoItems: DEFAULT_TANGO_ITEMS, confortavelItems: DEFAULT_CONFORTAVEL_ITEMS,
+          setupCategories: DEFAULT_SETUP_CATEGORIES,
+        })
       }
       setLoading(false)
-    }).catch(() => {
+    }).catch((err) => {
       if (cancelled) return
-      setProjectionData({ monthlyIncome: 0, newItems: DEFAULT_NEW_ITEMS, scenarios: DEFAULT_SCENARIOS, tangoItems: DEFAULT_TANGO_ITEMS, confortavelItems: DEFAULT_CONFORTAVEL_ITEMS })
+      console.error('[Projection] load error:', err)
+      setProjectionData({
+        monthlyIncome: 0, newItems: DEFAULT_NEW_ITEMS, tangoItems: DEFAULT_TANGO_ITEMS, confortavelItems: DEFAULT_CONFORTAVEL_ITEMS,
+        setupCategories: DEFAULT_SETUP_CATEGORIES,
+      })
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -1126,10 +1695,13 @@ export default function ProjectionPage({ entries }) {
 
   const persistData = useCallback(async (data) => {
     setSaving(true)
+    setSaveError(null)
     try {
       await saveProjectionData(data, prefix)
     } catch (err) {
       console.error('[Projection] save error:', err)
+      setSaveError('Erro ao salvar. Tente novamente.')
+      setTimeout(() => setSaveError(null), 4000)
     }
     setSaving(false)
   }, [prefix])
@@ -1175,34 +1747,10 @@ export default function ProjectionPage({ entries }) {
     [currentMonthExpenses],
   )
 
-  const avgMonthlyExpenses = useMemo(() => {
-    const now = new Date()
-    const startYear = now.getFullYear()
-    const startMonth = now.getMonth()
-
-    const expensesByMonth = {}
-    for (const e of entries) {
-      if (!e.dueDate || e.type !== 'Despesa') continue
-      const d = new Date(e.dueDate + 'T12:00:00')
-      const key = `${d.getFullYear()}-${d.getMonth()}`
-      expensesByMonth[key] = (expensesByMonth[key] || 0) + Math.abs(e.amount)
-    }
-
-    const currentKey = `${startYear}-${startMonth}`
-    const fallback = expensesByMonth[currentKey] || 0
-    let total = 0
-    for (let i = 0; i < 12; i++) {
-      let m = startMonth + i
-      let y = startYear
-      while (m >= 12) { m -= 12; y++ }
-      total += expensesByMonth[`${y}-${m}`] || fallback
-    }
-    return total / 12
-  }, [entries])
-
   const newItems = projectionData?.newItems || []
   const tangoItems = projectionData?.tangoItems || []
   const confortavelItems = projectionData?.confortavelItems || []
+  const setupCategories = projectionData?.setupCategories || DEFAULT_SETUP_CATEGORIES
   const totalNewItems = newItems.reduce((sum, i) => sum + (i.amount || 0), 0)
   const totalProjectedExpenses = totalCurrentExpenses + totalNewItems
   const monthlyIncome = projectionData?.monthlyIncome || currentMonthIncome
@@ -1296,6 +1844,12 @@ export default function ProjectionPage({ entries }) {
     persistData(next)
   }
 
+  const handleUpdateSetup = (newCategories) => {
+    const next = { ...projectionData, setupCategories: newCategories }
+    setProjectionData(next)
+    persistData(next)
+  }
+
   const handleSaveIncome = () => {
     const value = parseFloat(incomeInput) || 0
     const next = { ...projectionData, monthlyIncome: value }
@@ -1307,51 +1861,6 @@ export default function ProjectionPage({ entries }) {
   const handleStartEditIncome = () => {
     setIncomeInput(String(monthlyIncome || ''))
     setEditingIncome(true)
-  }
-
-  const scenarios = projectionData?.scenarios || DEFAULT_SCENARIOS
-
-  const handleScenarioUpdateItem = (scenarioKey, updatedItem) => {
-    const scenario = scenarios[scenarioKey]
-    const nextScenarios = {
-      ...scenarios,
-      [scenarioKey]: {
-        ...scenario,
-        items: scenario.items.map((i) => (i.id === updatedItem.id ? updatedItem : i)),
-      },
-    }
-    const next = { ...projectionData, scenarios: nextScenarios }
-    setProjectionData(next)
-    persistData(next)
-  }
-
-  const handleScenarioDeleteItem = (scenarioKey, itemId) => {
-    const scenario = scenarios[scenarioKey]
-    const nextScenarios = {
-      ...scenarios,
-      [scenarioKey]: {
-        ...scenario,
-        items: scenario.items.filter((i) => i.id !== itemId),
-      },
-    }
-    const next = { ...projectionData, scenarios: nextScenarios }
-    setProjectionData(next)
-    persistData(next)
-  }
-
-  const handleScenarioAddItem = (scenarioKey) => {
-    const scenario = scenarios[scenarioKey]
-    const item = { id: generateId(), label: 'Novo item', amount: 0 }
-    const nextScenarios = {
-      ...scenarios,
-      [scenarioKey]: {
-        ...scenario,
-        items: [...scenario.items, item],
-      },
-    }
-    const next = { ...projectionData, scenarios: nextScenarios }
-    setProjectionData(next)
-    persistData(next)
   }
 
   if (loading) {
@@ -1369,6 +1878,7 @@ export default function ProjectionPage({ entries }) {
           <ArrowLeftRight size={22} strokeWidth={1.8} className="text-primary" />
           <h2 className="text-2xl font-bold tracking-tight uppercase">Projeção: Sair de Casa</h2>
           {saving && <span className="text-[10px] text-text-muted animate-pulse">Salvando...</span>}
+          {saveError && <span className="text-[10px] text-red-600 font-medium">{saveError}</span>}
         </div>
         <p className="text-sm text-text-muted font-semibold">
           Compare sua situação atual com o cenário de morar sozinho
@@ -1450,6 +1960,16 @@ export default function ProjectionPage({ entries }) {
       </div>
 
       {/* Conteúdo da aba ativa */}
+      {activeTab === 'visao-geral' && (
+        <VisaoGeralTab
+          entries={entries}
+          monthlyIncome={monthlyIncome}
+          totalSimplesExtra={tangoItems.reduce((s, i) => s + (i.amount || 0), 0)}
+          totalConfortavelExtra={confortavelItems.reduce((s, i) => s + (i.amount || 0), 0)}
+          setupCategories={setupCategories}
+        />
+      )}
+
       {activeTab === 'projecao' && (
         <ProjecaoTab
           entries={entries}
@@ -1459,19 +1979,17 @@ export default function ProjectionPage({ entries }) {
         />
       )}
 
-      {activeTab === 'cenarios' && (
-        <CenariosTab
-          scenarios={scenarios}
-          avgMonthlyExpenses={avgMonthlyExpenses}
-          monthlyIncome={monthlyIncome}
-          onUpdateItem={handleScenarioUpdateItem}
-          onDeleteItem={handleScenarioDeleteItem}
-          onAddItem={handleScenarioAddItem}
+      {activeTab === 'caixa-necessario' && (
+        <CaixaNecessarioTab
+          entries={entries}
+          totalSimplesExtra={tangoItems.reduce((s, i) => s + (i.amount || 0), 0)}
+          totalConfortavelExtra={confortavelItems.reduce((s, i) => s + (i.amount || 0), 0)}
+          setupCategories={setupCategories}
         />
       )}
 
-      {activeTab === 'comparativo' && (
-        <ComparativoTab
+      {activeTab === 'cenarios' && (
+        <CenariosTab
           entries={entries}
           monthlyIncome={monthlyIncome}
           tangoItems={tangoItems}
@@ -1482,6 +2000,14 @@ export default function ProjectionPage({ entries }) {
           onUpdateConfortavelItem={handleUpdateConfortavelItem}
           onDeleteConfortavelItem={handleDeleteConfortavelItem}
           onAddConfortavelItem={handleAddConfortavelItem}
+        />
+      )}
+
+      {activeTab === 'investimento' && (
+        <InvestimentoInicialTab
+          monthlyIncome={monthlyIncome}
+          setupCategories={setupCategories}
+          onUpdateSetup={handleUpdateSetup}
         />
       )}
     </section>

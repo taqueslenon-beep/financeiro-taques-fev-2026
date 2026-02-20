@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fatura Cartão Sicoob Lenon — Fev/2026 — Pendentes</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #1a1a1a; padding: 40px 20px; }
+    .container { max-width: 960px; margin: 0 auto; }
+    
+    .header { background: #223631; color: white; padding: 28px 32px; border-radius: 16px 16px 0 0; }
+    .header h1 { font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
+    .header p { font-size: 13px; color: rgba(255,255,255,0.7); margin-top: 4px; }
+    
+    .summary { background: white; border: 1px solid #e0ddd5; border-top: none; padding: 20px 32px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .summary-card { text-align: center; }
+    .summary-card .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 4px; }
+    .summary-card .value { font-size: 20px; font-weight: 800; }
+    .summary-card .value.red { color: #c0392b; }
+    .summary-card .value.green { color: #27ae60; }
+    .summary-card .value.blue { color: #223631; }
+    
+    .done-box { background: #e8f8f0; border: 1px solid #b8e6cc; border-radius: 8px; padding: 14px 20px; margin: 20px 0; font-size: 13px; color: #1a6e3e; line-height: 1.5; }
+    .done-box strong { color: #0e5a2d; }
+    
+    .note-box { background: #fef9e7; border: 1px solid #f0e6b3; border-radius: 8px; padding: 14px 20px; margin: 0 0 20px; font-size: 13px; color: #7d6608; line-height: 1.5; }
+    .note-box strong { color: #5a4a06; }
+    
+    .table-wrapper { background: white; border: 1px solid #e0ddd5; border-radius: 0 0 16px 16px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead tr { background: #8B6914; color: white; }
+    th { padding: 10px 14px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+    th:last-child, td:last-child { text-align: right; }
+    th:first-child { width: 40px; text-align: center; }
+    td:first-child { text-align: center; font-weight: 700; color: #8B6914; font-size: 13px; }
+    td { padding: 10px 14px; border-bottom: 1px solid #f0ede5; }
+    tr:hover { background: #fefcf5; }
+    
+    .badge-cat { background: #f0ede5; color: #999; font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+    
+    .amount { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: #c0392b; }
+    .date-col { white-space: nowrap; color: #666; }
+    
+    .footer { padding: 16px 32px; text-align: right; font-size: 13px; color: #666; border-top: 2px solid #8B6914; }
+    .footer strong { color: #c0392b; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Fatura do Cartão — Sicoob Mastercard — Lenon</h1>
+      <p>Fevereiro/2026 — Venc. 11/02/2026 — Total: R$ 4.667,42 — PAGO</p>
+    </div>
+    
+    <div class="summary">
+      <div class="summary-card">
+        <div class="label">Itens Classificados</div>
+        <div class="value green">33 ✓</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Pendentes</div>
+        <div class="value red">16</div>
+      </div>
+      <div class="summary-card">
+        <div class="label">Valor Pendente</div>
+        <div class="value red">R$ 1.192,07</div>
+      </div>
+    </div>
+    
+    <div class="done-box">
+      <strong>✓ Já lançados:</strong> Anuidade (#1-2), IOF (#3-14), Curso Python (#15), Google Workspace (#16-17), Nctar IA (#18), Infinity (#19), Cursor (#20, 23, 32, 34), Apple (#22), Claude AI (#28), Google One (#29), JusBrasil (#30), Monday.com (#33), Lucid (#41), OpenAI (#44-45), Franz (#48), iLovePDF (#49).
+    </div>
+
+    <div class="note-box">
+      <strong>Pendentes de classificação:</strong> Me diga por número (#) o que é cada item. A maioria é "Amazon Digital BR" — pode ser livro, assinatura, software, etc.
+    </div>
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Data</th>
+            <th>Descrição</th>
+            <th>Categoria</th>
+            <th>Valor</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>21</td><td class="date-col">04/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 33,16</td></tr>
+          <tr><td>24</td><td class="date-col">07/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 182,00</td></tr>
+          <tr><td>25</td><td class="date-col">07/01</td><td>MercadoLivre — Produto (Osasco)</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 473,47</td></tr>
+          <tr><td>26</td><td class="date-col">08/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 42,99</td></tr>
+          <tr><td>27</td><td class="date-col">08/01</td><td>Registro.BR — Domínio</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 40,00</td></tr>
+          <tr><td>31</td><td class="date-col">12/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 31,41</td></tr>
+          <tr><td>35</td><td class="date-col">16/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 19,90</td></tr>
+          <tr><td>36</td><td class="date-col">17/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 19,94</td></tr>
+          <tr><td>37</td><td class="date-col">18/01</td><td>Hostinger — Hospedagem</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 443,88</td></tr>
+          <tr><td>38</td><td class="date-col">18/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 53,83</td></tr>
+          <tr><td>39</td><td class="date-col">18/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 45,16</td></tr>
+          <tr><td>40</td><td class="date-col">19/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 99,00</td></tr>
+          <tr><td>42</td><td class="date-col">21/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 39,90</td></tr>
+          <tr><td>43</td><td class="date-col">22/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 11,96</td></tr>
+          <tr><td>46</td><td class="date-col">24/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 31,86</td></tr>
+          <tr><td>47</td><td class="date-col">26/01</td><td>Amazon Digital BR</td><td><span class="badge-cat">?</span></td><td class="amount">-R$ 42,75</td></tr>
+        </tbody>
+      </table>
+      <div class="footer">
+        Total pendente: <strong>R$ 1.192,07</strong>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

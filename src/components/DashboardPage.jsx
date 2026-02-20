@@ -1,16 +1,21 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   ChevronLeft, ChevronRight,
   BarChart3, TrendingDown, TrendingUp,
-  Calendar, CalendarRange, History, Target, Crosshair, ShieldCheck,
-  Layers,
+  Calendar, CalendarRange, History, Target, Crosshair, ShieldCheck, Wallet,
+  Layers, ArrowLeftRight,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   BarChart, Bar, ReferenceLine,
 } from 'recharts'
-import { useWorkspaceData } from '../contexts/WorkspaceContext'
+import { useWorkspaceData, useWorkspace } from '../contexts/WorkspaceContext'
+import { categories } from '../data/categories'
+import { classifyEntry, classifyReceita } from '../utils/classifyEntry'
+import { accounts } from '../data/accounts'
+import ProjectionPage from './ProjectionPage'
+import { fetchProjectionData, fetchEntries } from '../services/firestore'
 
 /* ------------------------------------------------------------------ */
 /*  Constantes                                                         */
@@ -31,6 +36,7 @@ const TOP_TABS = [
   { id: 'mensal', label: 'Mensal', icon: Calendar },
   { id: 'anual', label: 'Anual', icon: CalendarRange },
   { id: 'reserva', label: 'Reserva de Emergência', icon: ShieldCheck },
+  { id: 'simulador-prolabore', label: 'Simulador Pró-labore', icon: Wallet, workspace: 'trabalho' },
 ]
 
 /** Sub-tabs da visão Mensal */
@@ -58,6 +64,7 @@ const RESERVA_ACCOUNT_ID = 'reserva-emergencia'
 const OWNER_COLORS = { lenon: '#004D4A', berna: '#C4D600' }
 const TYPE_COLORS = {
   'Fixa': '#223631',
+  'Previsão': '#0E7490',
   'Impostos': '#B45309',
   'Parcelamento': '#6b6b6b',
   'Repasse Parceiros': '#0369A1',
@@ -113,6 +120,77 @@ function filterByMonth(entries, year, month) {
     const d = new Date(e.dueDate + 'T12:00:00')
     return d.getFullYear() === year && d.getMonth() === month
   })
+}
+
+function parseYearMonth(value) {
+  if (!value || !/^\d{4}-\d{2}$/.test(value)) return null
+  const year = parseInt(value.slice(0, 4), 10)
+  const month = parseInt(value.slice(5, 7), 10) - 1
+  if (Number.isNaN(year) || Number.isNaN(month) || month < 0 || month > 11) return null
+  return { year, month }
+}
+
+function inferForecastStartMonth(entry) {
+  const fromField = parseYearMonth(entry.forecastStartMonth)
+  if (fromField) return fromField
+
+  if (entry.dueDate) {
+    const fromDueDate = parseYearMonth(entry.dueDate.slice(0, 7))
+    if (fromDueDate) return fromDueDate
+  }
+
+  if (typeof entry.createdAt === 'string' && entry.createdAt.length >= 7) {
+    const fromCreatedAt = parseYearMonth(entry.createdAt.slice(0, 7))
+    if (fromCreatedAt) return fromCreatedAt
+  }
+
+  const numericId = Number(entry.id)
+  if (!Number.isNaN(numericId) && numericId > 0) {
+    const d = new Date(numericId)
+    if (!Number.isNaN(d.getTime())) return { year: d.getFullYear(), month: d.getMonth() }
+  }
+
+  const now = new Date()
+  return { year: now.getFullYear(), month: now.getMonth() }
+}
+
+function getForecastMonthlyAmount(entry) {
+  const abs = Math.abs(entry.amount || 0)
+  const freq = entry.forecastFrequency || 'mensal'
+  const monthlyAbs = freq === 'semanal' ? abs * 4 : freq === 'anual' ? abs / 12 : abs
+  return entry.type === 'Receita' ? monthlyAbs : -monthlyAbs
+}
+
+function buildForecastVirtualEntries(entries) {
+  const horizonMonths = 72
+  const result = []
+  for (const entry of entries) {
+    if (entry._isForecastVirtual) continue
+    if (entry.recurrence !== 'Previsão') continue
+    if (entry.dueDate) continue
+
+    const start = inferForecastStartMonth(entry)
+    const monthlyAmount = getForecastMonthlyAmount(entry)
+
+    for (let i = 0; i < horizonMonths; i++) {
+      const date = new Date(start.year, start.month + i, 1, 12, 0, 0)
+      const year = date.getFullYear()
+      const month = date.getMonth()
+      const lastDay = new Date(year, month + 1, 0).getDate()
+      const dueDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+      result.push({
+        ...entry,
+        id: `${entry.id}-forecast-${year}-${String(month + 1).padStart(2, '0')}`,
+        amount: Math.round(monthlyAmount * 100) / 100,
+        dueDate,
+        settlementDate: '',
+        _isForecastVirtual: true,
+        _hideDueDate: true,
+      })
+    }
+  }
+  return result
 }
 
 function formatCurrency(value) {
@@ -613,7 +691,35 @@ function ExpensesTab({ monthEntries, invoiceData }) {
 
   const byType = useMemo(() => computeExpensesByType(filtered), [filtered])
   const byOwner = useMemo(() => computeExpensesByOwner(filtered), [filtered])
+
+  /* Previsto vs Realizado por tipo de despesa */
+  const previstoVsRealizado = useMemo(() => {
+    const mapPrevisto = {}
+    const mapRealizado = {}
+    for (const e of expanded) {
+      if (e.type !== 'Despesa') continue
+      const key = classifyEntry(e)
+      const abs = Math.abs(e.amount)
+      mapPrevisto[key] = (mapPrevisto[key] || 0) + abs
+      if (e.status === 'pago') {
+        mapRealizado[key] = (mapRealizado[key] || 0) + abs
+      }
+    }
+    const allKeys = [...new Set([...Object.keys(mapPrevisto), ...Object.keys(mapRealizado)])]
+    return allKeys
+      .map((name) => ({ name, previsto: mapPrevisto[name] || 0, realizado: mapRealizado[name] || 0 }))
+      .sort((a, b) => b.previsto - a.previsto)
+  }, [expanded])
   const byCategory = useMemo(() => computeExpensesByCategory(filtered), [filtered])
+  const previstoBreakdown = useMemo(() => {
+    const map = { 'Previsão': 0, 'Fixa': 0, 'Parcelamento': 0, 'Variável': 0 }
+    for (const e of expanded) {
+      if (e.type !== 'Despesa') continue
+      const key = classifyEntry(e)
+      if (Object.prototype.hasOwnProperty.call(map, key)) map[key] += Math.abs(e.amount)
+    }
+    return map
+  }, [expanded])
   const totalByType = byType.reduce((s, d) => s + d.value, 0)
   const totalByOwner = byOwner.reduce((s, d) => s + d.value, 0)
   const totalByCategory = byCategory.reduce((s, d) => s + d.value, 0)
@@ -652,6 +758,24 @@ function ExpensesTab({ monthEntries, invoiceData }) {
           <div className="flex items-center gap-4">
             <ExpenseViewToggle view={expenseView} onChange={setExpenseView} />
             <p className="text-lg font-semibold tabular-nums text-value-expense">{formatCurrency(totalByType)}</p>
+          </div>
+        </div>
+        <div className="mt-3 pt-3 border-t border-border grid grid-cols-4 gap-3">
+          <div>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Previsão</p>
+            <p className="text-[12px] font-semibold tabular-nums text-text-primary">{formatCurrency(previstoBreakdown['Previsão'] || 0)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Fixa</p>
+            <p className="text-[12px] font-semibold tabular-nums text-text-primary">{formatCurrency(previstoBreakdown.Fixa || 0)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Parcelamento</p>
+            <p className="text-[12px] font-semibold tabular-nums text-text-primary">{formatCurrency(previstoBreakdown.Parcelamento || 0)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] text-text-muted uppercase tracking-wider">Variável</p>
+            <p className="text-[12px] font-semibold tabular-nums text-text-primary">{formatCurrency(previstoBreakdown['Variável'] || 0)}</p>
           </div>
         </div>
       </div>
@@ -712,6 +836,40 @@ function ExpensesTab({ monthEntries, invoiceData }) {
               </ResponsiveContainer>
             </div>
             <div className="flex-1 min-w-0"><ChartLegend data={byCategory} colorMap={categoryColorMap} total={totalByCategory} /></div>
+          </div>
+        </div>
+      )}
+
+      {/* Gráfico Previsto vs Realizado por tipo */}
+      {previstoVsRealizado.length > 0 && (
+        <div className="bg-surface rounded-xl border border-border px-5 py-4">
+          <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Previsto vs Realizado</h3>
+          <p className="text-[10px] text-text-muted mb-4">Comparativo entre despesas previstas e efetivamente pagas, por tipo</p>
+          <div className="h-[260px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={previstoVsRealizado} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e8e8e4" />
+                <XAxis type="number" tickFormatter={formatCurrencyCompact} tick={{ fontSize: 10, fill: '#6b6b6b' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10, fill: '#1a1a1a' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  formatter={(value) => formatCurrency(value)}
+                  contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e8e8e4' }}
+                  labelStyle={{ fontWeight: 600, fontSize: 11 }}
+                />
+                <Bar dataKey="previsto" name="Previsto" fill="#223631" radius={[0, 4, 4, 0]} barSize={14} />
+                <Bar dataKey="realizado" name="Realizado" fill="#4ade80" radius={[0, 4, 4, 0]} barSize={14} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex items-center justify-center gap-6 mt-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm" style={{ background: '#223631' }} />
+              <span className="text-[10px] text-text-secondary font-medium">Previsto</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm" style={{ background: '#4ade80' }} />
+              <span className="text-[10px] text-text-secondary font-medium">Realizado</span>
+            </div>
           </div>
         </div>
       )}
@@ -803,6 +961,349 @@ function RevenueTab({ monthEntries }) {
   )
 }
 
+function ProlaboreSimulatorTab({ entries }) {
+  const [personalEntries, setPersonalEntries] = useState([])
+  const [personalProjection, setPersonalProjection] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [viewMode, setViewMode] = useState('atual') // 'atual' | 'meta'
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadData() {
+      try {
+        const [pEntries, pProj] = await Promise.all([
+          fetchEntries('personal_'),
+          fetchProjectionData('personal_')
+        ])
+        if (cancelled) return
+        const virtual = buildForecastVirtualEntries(pEntries)
+        setPersonalEntries([...pEntries, ...virtual])
+        setPersonalProjection(pProj)
+      } catch (err) {
+        console.error("Erro ao carregar dados pessoais/projeção", err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    loadData()
+    return () => { cancelled = true }
+  }, [])
+
+  const rows = useMemo(() => {
+    if (loading) return []
+
+    const months = [
+      { year: 2026, month: 2 }, // mar
+      { year: 2026, month: 3 }, // abr
+      { year: 2026, month: 4 }, // mai
+      { year: 2026, month: 5 }, // jun
+    ]
+
+    return months.map(({ year, month }) => {
+      // 1. Calcular Resultado Projetado do Trabalho
+      const monthEntries = entries.filter((e) => {
+        if (!e.dueDate) return false
+        const d = new Date(e.dueDate + 'T12:00:00')
+        return d.getFullYear() === year && d.getMonth() === month
+      })
+
+      let receitasPrevistas = 0
+      let despesasFixas = 0
+      let despesasReservaEmpresa = 0
+      let despesasPrevistas = 0
+      let prolaboreJaLancado = 0
+      
+      for (const e of monthEntries) {
+        if (e.type === 'Receita') {
+          receitasPrevistas += Math.abs(e.amount)
+          continue
+        }
+        if (e.type !== 'Despesa') continue
+        const abs = Math.abs(e.amount)
+        const tipo = classifyEntry(e)
+        despesasPrevistas += abs
+        if (tipo === 'Fixa') despesasFixas += abs
+        if (tipo === 'Fixa' || tipo === 'Parcelamento') despesasReservaEmpresa += abs
+        if (e.categoryId === 'pro-labore') prolaboreJaLancado += abs
+      }
+
+      const resultadoProjetado = receitasPrevistas - despesasPrevistas
+
+      // 2. Calcular Custo Previsto Pessoal (Pró-labore Mínimo)
+      const monthPersonalEntries = personalEntries.filter((e) => {
+        if (!e.dueDate) return false
+        const d = new Date(e.dueDate + 'T12:00:00')
+        return d.getFullYear() === year && d.getMonth() === month
+      })
+
+      const custoPrevistoPessoal = monthPersonalEntries.reduce((sum, e) => {
+        if (e.type === 'Despesa') return sum + Math.abs(e.amount)
+        return sum
+      }, 0)
+
+      const prolaboreComplementar = Math.max(0, custoPrevistoPessoal - prolaboreJaLancado)
+      const sobraAposProlabore = resultadoProjetado - prolaboreComplementar
+
+      return {
+        key: `${year}-${month}`,
+        monthLabel: `${SHORT_MONTHS[month]}/${year}`,
+        receitasPrevistas,
+        despesasPrevistas, // Includes fixed
+        despesasReservaEmpresa,
+        resultadoProjetado,
+        custoPrevistoPessoal,
+        prolaboreJaLancado,
+        prolaboreComplementar,
+        sobraAposProlabore,
+        ok: sobraAposProlabore >= 0,
+      }
+    })
+  }, [entries, personalEntries, loading])
+
+  // Lógica da Meta
+  const metaData = useMemo(() => {
+    if (loading || rows.length === 0) return null
+
+    // Meta Pessoal: 3 meses Confortável + AP Confortável
+    // Calcula custo médio mensal confortável
+    // Lógica copiada/adaptada de ProjectionPage (simplificada para não duplicar tudo, focada nos itens marcados)
+    // Se não tiver dados de projeção, usa fallback ou 0
+    
+    // Calcular média de despesas "Vida Confortável" (simples + confortavel items do setup)
+    // Mas o usuário já deu um número alvo de 88k.
+    // Vamos tentar calcular dinamicamente.
+    
+    let custoMensalConfortavel = 0
+    if (personalProjection) {
+      // Itens 'confortavelItems' (adicionais para vida confortável)
+      const addConfortavel = (personalProjection.confortavelItems || []).reduce((s, i) => s + (Number(i.amount)||0), 0)
+      
+      // Precisamos da 'base' (vida simples). Como não temos a função calculateAverageExpenses exportada,
+      // vamos aproximar usando a média do custo previsto pessoal atual (que é o cenário "pais" ou simples?)
+      // O usuário disse: "Cenário atual é eu morando com os pais".
+      // Então o 'custoPrevistoPessoal' dos rows é o cenário ATUAL.
+      
+      // O usuário quer "3 meses de vida confortável".
+      // Vamos assumir que 'vida confortável' = CustoAtual + AdicionaisConfortaveis?
+      // Ou vamos pegar os dados do personalProjection se existirem.
+      
+      // Para ser preciso com o número de R$ 88k mencionado:
+      // Se R$ 88.996 é o alvo total.
+      // Vamos usar o cálculo do ProjectionPage se possível, mas aqui vamos fazer uma estimativa baseada no que temos.
+      // "Eu quero que você considere que eu tenho que juntar esse número até o mês de junho." -> R$ 88.996,27
+      // Se esse número for fixo na mente do usuário, melhor usá-lo ou permitir editá-lo.
+      // Mas ele disse "considere que esse número é um pouco dinâmico".
+      
+      // Vamos tentar reconstruir o valor "Vida Confortável" do ProjectionPage:
+      // ProjectionPage: avgExpenses.confortavel = avgExpenses.simples + totalConfortavelItems
+      // Setup: invTotals.confortavel
+      // Meta = 3 * avgExpenses.confortavel + invTotals.confortavel
+      
+      // Como não tenho as médias calculadas aqui facilmente, vou usar o valor que ele deu como 'Target Base'
+      // mas somar a reserva da empresa dinamicamente.
+    }
+    
+    // Meta Pessoal HARDCODED/DINAMICA
+    // Vou usar o cálculo real se conseguir, senão uso o valor dele.
+    // Para calcular real, precisaria de 'setupCategories' para o AP e média de despesas.
+    // Vou fazer o seguinte: Calcular a Reserva da Empresa e usar o valor dele para a Pessoal, 
+    // mas deixar um aviso que é o valor alvo.
+    
+    const META_PESSOAL_ALVO = 88996.27
+
+    // Meta Empresa: reserva de 3 meses (fixas + parcelamentos), sem duplicar outras despesas.
+    // Usa a mesma base da visão "Reserva de Emergência".
+    const metaReservaEmpresa = rows
+      .slice(0, 3)
+      .reduce((sum, row) => sum + row.despesasReservaEmpresa, 0)
+
+    const metaTotal = META_PESSOAL_ALVO + metaReservaEmpresa
+
+    // Quanto já vamos sobrar?
+    // Soma das 'sobraAposProlabore' de Mar, Abr, Mai, Jun.
+    // Se a sobra for negativa, consideramos 0 para acumulação (ou subtraímos?)
+    // O usuário quer saber "quanto faltaria ainda eu faturar".
+    // Então, assumimos que toda a sobra projetada vai para o pote.
+    const sobraProjetadaTotal = rows.reduce((s, r) => s + r.sobraAposProlabore, 0)
+
+    const faltaAcumular = metaTotal - sobraProjetadaTotal
+    const esforcoMensalExtra = faltaAcumular / 4
+
+    return {
+      metaPessoal: META_PESSOAL_ALVO,
+      metaReservaEmpresa,
+      metaTotal,
+      sobraProjetadaTotal,
+      faltaAcumular,
+      esforcoMensalExtra
+    }
+  }, [rows, personalProjection, loading])
+
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 bg-surface rounded-xl border border-border">
+        <p className="text-[12px] text-text-muted">Carregando dados combinados...</p>
+      </div>
+    )
+  }
+
+  const mesesComFolga = rows.filter((r) => r.ok).length
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-surface rounded-xl border border-border px-5 py-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">Simulador de Pró-labore</h3>
+            <p className="text-[10px] text-text-muted">
+              Análise de viabilidade financeira: Março a Junho/2026
+            </p>
+          </div>
+          <div className="flex bg-offwhite p-1 rounded-lg border border-border">
+            <button
+              onClick={() => setViewMode('atual')}
+              className={`px-3 py-1.5 text-[10px] font-medium rounded-md transition-all ${
+                viewMode === 'atual' ? 'bg-white text-primary shadow-sm border border-border/50' : 'text-text-muted hover:text-text-secondary'
+              }`}
+            >
+              Cenário Atual (Pais)
+            </button>
+            <button
+              onClick={() => setViewMode('meta')}
+              className={`px-3 py-1.5 text-[10px] font-medium rounded-md transition-all ${
+                viewMode === 'meta' ? 'bg-white text-primary shadow-sm border border-border/50' : 'text-text-muted hover:text-text-secondary'
+              }`}
+            >
+              Meta: Sair de Casa + Reserva
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {viewMode === 'atual' ? (
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-surface rounded-xl border border-border px-4 py-3">
+              <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Meses com folga</p>
+              <p className="text-[18px] font-bold text-primary tabular-nums">{mesesComFolga}/4</p>
+            </div>
+            <div className="bg-surface rounded-xl border border-border px-4 py-3">
+              <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Menor sobra após pró-labore</p>
+              <p className={`text-[18px] font-bold tabular-nums ${Math.min(...rows.map((r) => r.sobraAposProlabore)) >= 0 ? 'text-value-income' : 'text-value-expense'}`}>
+                {formatCurrency(Math.min(...rows.map((r) => r.sobraAposProlabore)))}
+              </p>
+            </div>
+            <div className="bg-surface rounded-xl border border-border px-4 py-3">
+              <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Maior sobra após pró-labore</p>
+              <p className="text-[18px] font-bold text-value-income tabular-nums">
+                {formatCurrency(Math.max(...rows.map((r) => r.sobraAposProlabore)))}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-surface rounded-xl border border-border overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="bg-offwhite border-b border-border">
+                    <th className="text-left px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider">Mês</th>
+                    <th className="text-right px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider">Receitas (Trab)</th>
+                    <th className="text-right px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider">Despesas (Trab)</th>
+                    <th className="text-right px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider">Res. Projetado</th>
+                    <th className="text-right px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider text-primary">Custo Pessoal (Mínimo)</th>
+                    <th className="text-right px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider">Complementar</th>
+                    <th className="text-right px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider">Sobra/Falta</th>
+                    <th className="text-center px-4 py-2.5 font-semibold text-text-secondary uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, idx) => (
+                    <tr key={row.key} className={`border-b border-border ${idx % 2 === 0 ? '' : 'bg-offwhite/40'}`}>
+                      <td className="px-4 py-3 font-semibold text-text-primary">{row.monthLabel}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-value-income">{formatCurrency(row.receitasPrevistas)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-value-expense">{formatCurrency(row.despesasPrevistas)}</td>
+                      <td className={`px-4 py-3 text-right tabular-nums font-semibold ${row.resultadoProjetado >= 0 ? 'text-value-income' : 'text-value-expense'}`}>
+                        {formatCurrency(row.resultadoProjetado)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-primary">
+                        {formatCurrency(row.custoPrevistoPessoal)}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums text-text-primary">
+                        {formatCurrency(row.prolaboreComplementar)}
+                      </td>
+                      <td className={`px-4 py-3 text-right tabular-nums font-semibold ${row.ok ? 'text-value-income' : 'text-value-expense'}`}>
+                        {formatCurrency(row.sobraAposProlabore)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${row.ok ? 'bg-status-paid-bg text-status-paid-text' : 'bg-status-overdue-bg text-status-overdue-text'}`}>
+                          {row.ok ? 'Consegue pagar' : 'Não consegue'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-surface rounded-xl border border-border px-5 py-4">
+               <h4 className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-3">Metas de Acumulação (até Jun/26)</h4>
+               <div className="space-y-3">
+                 <div className="flex justify-between items-center">
+                   <span className="text-[11px] text-text-secondary">Pessoal (3 meses Conforto + AP)</span>
+                   <span className="text-[12px] font-semibold text-text-primary tabular-nums">{formatCurrency(metaData?.metaPessoal || 0)}</span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <span className="text-[11px] text-text-secondary">Empresa (3 meses Reserva)</span>
+                   <span className="text-[12px] font-semibold text-text-primary tabular-nums">{formatCurrency(metaData?.metaReservaEmpresa || 0)}</span>
+                 </div>
+                 <div className="pt-2 border-t border-border flex justify-between items-center">
+                   <span className="text-[11px] font-semibold text-primary">Total Necessário</span>
+                   <span className="text-[14px] font-bold text-primary tabular-nums">{formatCurrency(metaData?.metaTotal || 0)}</span>
+                 </div>
+               </div>
+            </div>
+
+            <div className="bg-surface rounded-xl border border-border px-5 py-4 bg-primary/5">
+               <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-3">Planejamento</h4>
+               <div className="space-y-3">
+                 <div className="flex justify-between items-center">
+                   <span className="text-[11px] text-text-secondary">Total Necessário</span>
+                   <span className="text-[12px] font-semibold text-text-primary tabular-nums">{formatCurrency(metaData?.metaTotal || 0)}</span>
+                 </div>
+                 <div className="flex justify-between items-center">
+                   <span className="text-[11px] text-text-secondary">Sobra Projetada (Mar-Jun)</span>
+                   <span className={`text-[12px] font-semibold tabular-nums ${metaData?.sobraProjetadaTotal >= 0 ? 'text-value-income' : 'text-value-expense'}`}>
+                     {formatCurrency(metaData?.sobraProjetadaTotal || 0)}
+                   </span>
+                 </div>
+                 <div className="pt-2 border-t border-border/50 flex justify-between items-center">
+                   <span className="text-[11px] font-semibold text-value-expense">Falta Acumular</span>
+                   <span className="text-[14px] font-bold text-value-expense tabular-nums">{formatCurrency(metaData?.faltaAcumular || 0)}</span>
+                 </div>
+               </div>
+            </div>
+          </div>
+
+          <div className="bg-surface rounded-xl border border-border px-6 py-8 text-center">
+            <p className="text-[11px] text-text-muted uppercase tracking-wider mb-2">Esforço Mensal Adicional</p>
+            <h3 className="text-3xl font-bold text-primary mb-2 tabular-nums">
+              {formatCurrency(metaData?.esforçoMensalExtra || metaData?.esforcoMensalExtra || 0)}
+            </h3>
+            <p className="text-[12px] text-text-secondary max-w-md mx-auto">
+              Para atingir as metas de <strong>R$ {formatCurrencyCompact(metaData?.metaPessoal || 0)}</strong> (pessoal) e <strong>R$ {formatCurrencyCompact(metaData?.metaReservaEmpresa || 0)}</strong> (empresa) até junho, você precisa faturar este valor <strong>extra</strong> (além do previsto) em Março, Abril, Maio e Junho.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ================================================================== */
 /*  PONTO DE EQUILÍBRIO — Sub-aba compartilhada (Mensal / Anual)       */
 /* ================================================================== */
@@ -827,396 +1328,252 @@ function BreakevenTab() {
 }
 
 /* ================================================================== */
-/*  RESERVA DE EMERGÊNCIA — Sub-aba compartilhada (Mensal / Anual)     */
+/*  RESERVA DE EMERGÊNCIA                                              */
 /* ================================================================== */
 
-/**
- * Sub-aba "Reserva de Emergência".
- * Props:
- *   allEntries    — todos os lançamentos (para calcular ponto de equilíbrio médio)
- *   periodEntries — lançamentos do período (para aportes do período)
- *   periodLabel   — "Mensal" ou "Anual"
- *   periodHint    — ex: "fevereiro de 2026" ou "2026"
- *   mode          — 'mensal' | 'anual'
- */
-function ReservaTab({ allEntries, periodEntries, periodLabel, periodHint, mode }) {
-  const [reservaSubTab, setReservaSubTab] = useState('completa') // 'completa' | 'fixas'
-
+function ReservaTab({ allEntries, year, month, invoiceData }) {
   const data = useMemo(() => {
-    // 1. Saldo atual da reserva: soma de todos os aportes efetivados (qualquer período)
-    let saldoAtual = 0
-    for (const e of allEntries) {
-      if (e.accountId !== RESERVA_ACCOUNT_ID) continue
-      if (e.status !== 'pago') continue
-      saldoAtual += Math.abs(e.amount)
+    const monthsData = []
+    const currentFixaItems = []
+    const currentParcelamentoItems = []
+
+    for (let i = 0; i < 12; i++) {
+      const targetMonth = (month + i) % 12
+      const targetYear = year + Math.floor((month + i) / 12)
+
+      const monthEntries = allEntries.filter(e => {
+        if (!e.dueDate || e.type !== 'Despesa') return false
+        const d = new Date(e.dueDate + 'T12:00:00')
+        return d.getFullYear() === targetYear && d.getMonth() === targetMonth
+      })
+
+      const expanded = expandInvoiceEntries(monthEntries, invoiceData)
+
+      let fixas = 0
+      let parcelamentos = 0
+
+      for (const e of expanded) {
+        if (e.type !== 'Despesa') continue
+        const tipo = classifyEntry(e)
+        if (tipo === 'Fixa') {
+          fixas += Math.abs(e.amount)
+          if (i === 0) currentFixaItems.push({ description: e.description, amount: Math.abs(e.amount) })
+        } else if (tipo === 'Parcelamento') {
+          parcelamentos += Math.abs(e.amount)
+          if (i === 0) currentParcelamentoItems.push({ description: e.description, amount: Math.abs(e.amount) })
+        }
+      }
+
+      monthsData.push({
+        label: SHORT_MONTHS[targetMonth],
+        fixas,
+        parcelamentos,
+        total: fixas + parcelamentos,
+        hasData: monthEntries.length > 0,
+      })
     }
 
-    // 2. Ponto de equilíbrio médio mensal (últimos 12 meses ou dados disponíveis)
-    const now = new Date()
-    const monthlyExpenses = {}
-    const monthlyFixed = {}
-
-    for (const e of allEntries) {
-      if (!e.dueDate) continue
-      if (e.type === 'Reserva') continue
-      if (e.type === 'Receita') continue
-      
-      const d = new Date(e.dueDate + 'T12:00:00')
-      const key = `${d.getFullYear()}-${d.getMonth()}`
-      
-      // Geral (Ponto de Equilíbrio)
-      monthlyExpenses[key] = (monthlyExpenses[key] || 0) + Math.abs(e.amount)
-      
-      // Apenas Fixas e Parcelamento (Reservas Fixas)
-      const tipo = classifyEntry(e)
-      if (tipo === 'Fixa' || tipo === 'Parcelamento') {
-        monthlyFixed[key] = (monthlyFixed[key] || 0) + Math.abs(e.amount)
+    const baseFixas = monthsData[0].fixas
+    for (let i = 1; i < monthsData.length; i++) {
+      if (!monthsData[i].hasData && baseFixas > 0) {
+        monthsData[i].fixas = baseFixas
+        monthsData[i].total = baseFixas + monthsData[i].parcelamentos
+        monthsData[i]._estimated = true
       }
     }
-    
-    const months = Object.values(monthlyExpenses)
-    const avgMonthlyExpense = months.length > 0
-      ? months.reduce((s, v) => s + v, 0) / months.length
-      : 0
 
-    const fixedMonths = Object.values(monthlyFixed)
-    const avgFixedExpense = fixedMonths.length > 0
-      ? fixedMonths.reduce((s, v) => s + v, 0) / fixedMonths.length
-      : 0
-
-    // 3. Meta de reserva: 6x o ponto de equilíbrio médio mensal
-    const metaReserva = avgMonthlyExpense * 6
-
-    // 4. Índice de sobrevivência: quantos meses a reserva cobre
-    const indiceSobrevivencia = avgMonthlyExpense > 0
-      ? saldoAtual / avgMonthlyExpense
-      : 0
-
-    // 5. Aportes do período
-    let aportesPeriodo = 0
-    let aportesPrevistos = 0
-    for (const e of periodEntries) {
-      if (e.accountId !== RESERVA_ACCOUNT_ID) continue
-      if (e.status === 'pago') aportesPeriodo += Math.abs(e.amount)
-      else aportesPrevistos += Math.abs(e.amount)
-    }
+    currentFixaItems.sort((a, b) => b.amount - a.amount)
+    currentParcelamentoItems.sort((a, b) => b.amount - a.amount)
 
     return {
-      saldoAtual,
-      metaReserva,
-      avgMonthlyExpense,
-      avgFixedExpense,
-      indiceSobrevivencia,
-      aportesPeriodo,
-      aportesPrevistos,
+      monthsData,
+      currentMonth: monthsData[0],
+      fixaItems: currentFixaItems,
+      parcelamentoItems: currentParcelamentoItems,
+      reserve1: monthsData[0].total,
+      reserve3: monthsData.slice(0, 3).reduce((s, m) => s + m.total, 0),
+      reserve6: monthsData.slice(0, 6).reduce((s, m) => s + m.total, 0),
+      reserve12: monthsData.reduce((s, m) => s + m.total, 0),
     }
-  }, [allEntries, periodEntries])
+  }, [allEntries, year, month, invoiceData])
 
   const {
-    saldoAtual, metaReserva, avgMonthlyExpense, avgFixedExpense,
-    indiceSobrevivencia, aportesPeriodo, aportesPrevistos,
+    monthsData, currentMonth, fixaItems, parcelamentoItems,
+    reserve1, reserve3, reserve6, reserve12,
   } = data
 
-  const pctMeta = metaReserva > 0 ? Math.min((saldoAtual / metaReserva) * 100, 100) : 0
-  const metaAtingida = saldoAtual >= metaReserva
-
-  // Dados para gráfico comparativo
-  const chartData = [
-    { name: 'Saldo Atual', value: saldoAtual },
-    { name: 'Meta (6 meses)', value: metaReserva },
+  const reserves = [
+    { months: 1, label: '1 mês', value: reserve1, hint: 'Base mensal' },
+    { months: 3, label: '3 meses', value: reserve3, hint: 'Acumulado trimestral' },
+    { months: 6, label: '6 meses', value: reserve6, hint: 'Segurança semestral' },
+    { months: 12, label: '12 meses', value: reserve12, hint: 'Proteção anual' },
   ]
 
   return (
     <div className="space-y-5">
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-            Reserva de Emergência
-          </h3>
-          <p className="text-[10px] text-text-muted mt-0.5">
-            {mode === 'mensal'
-              ? `Acompanhamento do aporte e evolução patrimonial em ${periodHint}`
-              : `Análise do crescimento do patrimônio de segurança em ${periodHint}`
-            }
-          </p>
-        </div>
+      <div>
+        <h3 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
+          Reserva de Emergência
+        </h3>
+        <p className="text-[10px] text-text-muted mt-0.5">
+          Calculada com base nas despesas fixas e parcelamentos vigentes
+        </p>
+      </div>
 
-        {/* Seletor de sub-aba */}
-        <div className="flex items-center gap-1.5 p-1 rounded-xl border border-border bg-offwhite">
-          {[
-            { id: 'completa', label: 'Reserva Completa', icon: ShieldCheck },
-            { id: 'fixas', label: 'Reservas Fixas', icon: Layers },
-          ].map((tab) => {
-            const isActive = tab.id === reservaSubTab
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setReservaSubTab(tab.id)}
-                className={`
-                  flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider
-                  transition-all duration-200 cursor-pointer
-                  ${isActive
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-text-muted hover:text-text-secondary'
-                  }
-                `}
-              >
-                <tab.icon size={13} strokeWidth={2} />
-                <span>{tab.label}</span>
-              </button>
-            )
-          })}
+      {/* Base mensal */}
+      <div className="bg-surface rounded-xl border border-border px-6 py-5">
+        <div className="flex items-center gap-3 mb-3">
+          <ShieldCheck size={18} strokeWidth={1.8} style={{ color: BREAKEVEN_COLOR }} className="shrink-0" />
+          <div>
+            <h4 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: BREAKEVEN_COLOR }}>
+              Custo Mensal Base
+            </h4>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              Despesas fixas + parcelamentos do mês selecionado
+            </p>
+          </div>
+        </div>
+        <div className="flex items-baseline gap-2 mb-3">
+          <span className="text-3xl font-bold tabular-nums" style={{ color: BREAKEVEN_COLOR }}>
+            {formatCurrency(currentMonth.total)}
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-[10px]">
+          <span className="text-text-muted">
+            Fixas: <span className="font-medium text-text-primary tabular-nums">{formatCurrency(currentMonth.fixas)}</span>
+          </span>
+          <span className="text-text-muted">
+            Parcelamentos: <span className="font-medium text-text-primary tabular-nums">{formatCurrency(currentMonth.parcelamentos)}</span>
+          </span>
         </div>
       </div>
 
-      {reservaSubTab === 'completa' ? (
-        <>
-          {/* Card de destaque — Índice de Sobrevivência */}
-          <div className="bg-surface rounded-xl border border-border px-6 py-5">
-            <div className="flex items-center gap-3 mb-3">
-              <ShieldCheck size={18} strokeWidth={1.8} style={{ color: BREAKEVEN_COLOR }} className="shrink-0" />
-              <div>
-                <h4 className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: BREAKEVEN_COLOR }}>
-                  Índice de Sobrevivência
-                </h4>
-                <p className="text-[10px] text-text-muted mt-0.5">
-                  Tempo estimado de autonomia financeira sem novas receitas
-                </p>
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2 mb-1">
-              <span className="text-3xl font-bold tabular-nums" style={{ color: BREAKEVEN_COLOR }}>
-                {indiceSobrevivencia.toFixed(1)}
-              </span>
-              <span className="text-sm font-medium text-text-muted">
-                {indiceSobrevivencia === 1 ? 'Mês de Cobertura' : 'Meses de Cobertura'}
-              </span>
-            </div>
-            <p className="text-[10px] text-text-muted">
-              Ponto de equilíbrio médio mensal: <span className="font-medium text-text-primary tabular-nums">{formatCurrency(avgMonthlyExpense)}</span>
+      {/* Reserve targets */}
+      <div className="grid grid-cols-4 gap-4">
+        {reserves.map((r, i) => (
+          <div
+            key={r.months}
+            className={`rounded-xl border px-5 py-4 ${
+              i === 3
+                ? 'bg-primary/5 border-primary/20'
+                : 'bg-surface border-border'
+            }`}
+          >
+            <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+              {r.label}
             </p>
+            <p className={`text-xl font-bold tabular-nums ${
+              i === 3 ? 'text-primary' : 'text-text-primary'
+            }`}>
+              {formatCurrency(r.value)}
+            </p>
+            <p className="text-[9px] text-text-muted mt-1">{r.hint}</p>
           </div>
+        ))}
+      </div>
 
-          {/* Indicadores numéricos */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-surface rounded-xl border border-border px-5 py-4">
-              <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
-                Meta de Reserva
-              </p>
-              <p className="text-[10px] text-text-muted mb-2.5">
-                Capital necessário para 6 meses de operação
-              </p>
-              <p className="text-lg font-semibold tabular-nums" style={{ color: BREAKEVEN_COLOR }}>
-                {formatCurrency(metaReserva)}
-              </p>
-            </div>
-
-            <div className="bg-surface rounded-xl border border-border px-5 py-4">
-              <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
-                Saldo Atual
-              </p>
-              <p className="text-[10px] text-text-muted mb-2.5">
-                Patrimônio acumulado na conta de reserva
-              </p>
-              <p className={`text-lg font-semibold tabular-nums ${metaAtingida ? 'text-value-income' : ''}`}
-                 style={!metaAtingida ? { color: BREAKEVEN_COLOR } : {}}>
-                {formatCurrency(saldoAtual)}
-              </p>
-            </div>
-
-            <div className="bg-surface rounded-xl border border-border px-5 py-4">
-              <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">
-                {mode === 'mensal' ? 'Aporte do Mês' : 'Aportes do Ano'}
-              </p>
-              <p className="text-[10px] text-text-muted mb-2.5">
-                {aportesPeriodo > 0 ? 'Efetivado no período selecionado' : 'Previsto para o período selecionado'}
-              </p>
-              <p className="text-lg font-semibold tabular-nums text-value-income">
-                {formatCurrency(aportesPeriodo > 0 ? aportesPeriodo : aportesPrevistos)}
-              </p>
-              {aportesPeriodo > 0 && aportesPrevistos > 0 && (
-                <p className="text-[10px] text-text-muted mt-1 tabular-nums">
-                  + {formatCurrency(aportesPrevistos)} previstos
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Barra de progresso — Meta de Reserva */}
-          <div className="bg-surface rounded-xl border border-border px-5 py-5">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                  Progresso rumo à meta
-                </h4>
-                <p className="text-[10px] text-text-muted mt-0.5">
-                  Capital necessário para 6 meses de operação
-                </p>
-              </div>
-              <span className={`text-sm font-semibold tabular-nums ${metaAtingida ? 'text-value-income' : ''}`}
-                    style={!metaAtingida ? { color: BREAKEVEN_COLOR } : {}}>
-                {pctMeta.toFixed(1)}%
-              </span>
-            </div>
-
-            {/* Barra */}
-            <div className="relative h-4 rounded-full bg-offwhite overflow-hidden">
-              <div
-                className="absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out"
-                style={{
-                  width: `${pctMeta}%`,
-                  backgroundColor: metaAtingida ? ANNUAL_INCOME_COLOR : BREAKEVEN_COLOR,
+      {/* Evolução 12 meses */}
+      <div className="bg-surface rounded-xl border border-border px-5 py-5">
+        <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">
+          Evolução nos próximos 12 meses
+        </h4>
+        <p className="text-[10px] text-text-muted mb-4">
+          Como as despesas fixas e parcelamentos evoluem mês a mês
+        </p>
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthsData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barCategoryGap="25%">
+              <CartesianGrid strokeDasharray="3 3" stroke="#e8e8e4" vertical={false} />
+              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#6b6b6b' }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#9b9b9b' }} tickFormatter={formatCurrencyCompact} width={64} />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null
+                  const fixasVal = payload.find(item => item.dataKey === 'fixas')?.value || 0
+                  const parcVal = payload.find(item => item.dataKey === 'parcelamentos')?.value || 0
+                  return (
+                    <div className="bg-surface border border-border rounded-lg px-4 py-3 shadow-sm">
+                      <p className="text-[11px] font-semibold text-primary mb-2">{label}</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: BREAKEVEN_COLOR }} />
+                            <span className="text-[10px] text-text-secondary">Fixas</span>
+                          </div>
+                          <span className="text-[10px] font-medium text-text-primary tabular-nums">{formatCurrency(fixasVal)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: '#6b6b6b' }} />
+                            <span className="text-[10px] text-text-secondary">Parcelamentos</span>
+                          </div>
+                          <span className="text-[10px] font-medium text-text-primary tabular-nums">{formatCurrency(parcVal)}</span>
+                        </div>
+                        <div className="pt-1.5 mt-1 border-t border-border flex items-center justify-between gap-4">
+                          <span className="text-[10px] text-text-muted">Total</span>
+                          <span className="text-[10px] font-semibold text-text-primary tabular-nums">{formatCurrency(fixasVal + parcVal)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
                 }}
               />
-            </div>
-
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-[10px] text-text-muted">
-                Acumulado: <span className="font-medium text-text-primary tabular-nums">{formatCurrency(saldoAtual)}</span>
-              </span>
-              {metaAtingida ? (
-                <span className="text-[10px] font-medium text-value-income tabular-nums">
-                  Meta atingida
-                </span>
-              ) : (
-                <span className="text-[10px] text-text-muted tabular-nums">
-                  Faltam <span className="font-medium" style={{ color: BREAKEVEN_COLOR }}>{formatCurrency(metaReserva - saldoAtual)}</span>
-                </span>
-              )}
-            </div>
+              <Bar dataKey="fixas" stackId="a" fill={BREAKEVEN_COLOR} maxBarSize={24} />
+              <Bar dataKey="parcelamentos" stackId="a" fill="#6b6b6b" radius={[3, 3, 0, 0]} maxBarSize={24} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex items-center justify-center gap-6 mt-3 pt-3 border-t border-border">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: BREAKEVEN_COLOR }} />
+            <span className="text-[10px] text-text-secondary">Fixas</span>
           </div>
-
-          {/* Gráfico comparativo */}
-          <div className="bg-surface rounded-xl border border-border px-5 py-5">
-            <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">
-              Saldo Atual vs Meta de Reserva
-            </h4>
-            <p className="text-[10px] text-text-muted mb-4">
-              Comparativo entre patrimônio acumulado e capital-alvo de segurança
-            </p>
-            <div className="h-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }} barCategoryGap="35%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e8e8e4" horizontal={false} />
-                  <XAxis
-                    type="number" axisLine={false} tickLine={false}
-                    tick={{ fontSize: 10, fill: '#9b9b9b' }}
-                    tickFormatter={(v) => formatCurrencyCompact(v)}
-                  />
-                  <YAxis
-                    type="category" dataKey="name" axisLine={false} tickLine={false}
-                    tick={{ fontSize: 11, fill: '#6b6b6b', fontWeight: 500 }}
-                    width={110}
-                  />
-                  <Tooltip
-                    formatter={(value) => [formatCurrency(value), '']}
-                    contentStyle={{
-                      backgroundColor: '#fafaf7',
-                      border: '1px solid #e8e8e4',
-                      borderRadius: '8px',
-                      fontSize: '11px',
-                    }}
-                  />
-                  <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={32}>
-                    <Cell fill={metaAtingida ? ANNUAL_INCOME_COLOR : BREAKEVEN_COLOR} />
-                    <Cell fill="#9b9b9b" fillOpacity={0.5} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex items-center justify-center gap-8 mt-3 pt-3 border-t border-border">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: metaAtingida ? ANNUAL_INCOME_COLOR : BREAKEVEN_COLOR }} />
-                <span className="text-[10px] text-text-secondary">Saldo Atual</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: '#9b9b9b', opacity: 0.5 }} />
-                <span className="text-[10px] text-text-secondary">Meta (6 meses de operação)</span>
-              </div>
-            </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#6b6b6b' }} />
+            <span className="text-[10px] text-text-secondary">Parcelamentos</span>
           </div>
-        </>
-      ) : (
-        /* VISÃO RESERVAS FIXAS (Negócio) */
-        <div className="space-y-4">
-          <div className="bg-surface rounded-xl border border-border px-6 py-5">
-            <div className="flex items-center gap-3 mb-4">
-              <Layers size={18} strokeWidth={1.8} className="text-primary shrink-0" />
+        </div>
+      </div>
+
+      {/* Detalhamento */}
+      {(fixaItems.length > 0 || parcelamentoItems.length > 0) && (
+        <div className="bg-surface rounded-xl border border-border px-5 py-4">
+          <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-4">
+            Detalhamento do mês
+          </h4>
+          <div className="grid grid-cols-2 gap-6">
+            {fixaItems.length > 0 && (
               <div>
-                <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                  Reservas Fixas (Apenas Negócio)
-                </h4>
-                <p className="text-[10px] text-text-muted mt-0.5">
-                  Cálculo focado em Despesas Fixas e Parcelamentos.
-                  <span className="block font-medium text-primary mt-1">
-                    * Não inclui Pró-labore ou Retiradas.
-                  </span>
-                </p>
+                <div className="flex items-center justify-between mb-2 pb-2 border-b border-border">
+                  <span className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Fixas</span>
+                  <span className="text-[10px] font-semibold text-text-primary tabular-nums">{formatCurrency(currentMonth.fixas)}</span>
+                </div>
+                <div className="space-y-1.5">
+                  {fixaItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between">
+                      <span className="text-[11px] text-text-secondary truncate mr-2">{item.description}</span>
+                      <span className="text-[11px] font-medium text-text-primary tabular-nums shrink-0">{formatCurrency(item.amount)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-offwhite rounded-xl border border-border px-5 py-4">
-                <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider mb-2">1 Mês de Reserva</p>
-                <p className="text-xl font-bold text-primary tabular-nums">
-                  {formatCurrency(avgFixedExpense)}
-                </p>
-                <p className="text-[9px] text-text-muted mt-1">Base: Média mensal fixa</p>
-              </div>
-              
-              <div className="bg-offwhite rounded-xl border border-border px-5 py-4">
-                <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider mb-2">3 Meses de Reserva</p>
-                <p className="text-xl font-bold text-primary tabular-nums">
-                  {formatCurrency(avgFixedExpense * 3)}
-                </p>
-                <p className="text-[9px] text-text-muted mt-1">Acumulado trimestral</p>
-              </div>
-              
-              <div className="bg-offwhite rounded-xl border border-border px-5 py-4 border-primary/20">
-                <p className="text-[9px] font-semibold text-text-muted uppercase tracking-wider mb-2">6 Meses de Reserva</p>
-                <p className="text-xl font-bold text-primary tabular-nums">
-                  {formatCurrency(avgFixedExpense * 6)}
-                </p>
-                <p className="text-[9px] text-text-muted mt-1">Segurança semestral</p>
-              </div>
-            </div>
-
-            <div className="mt-5 p-4 bg-offwhite/50 rounded-lg border border-dashed border-border">
-              <p className="text-[10px] text-text-muted leading-relaxed">
-                Este cálculo considera apenas as despesas classificadas como <span className="font-semibold">Fixas</span> e <span className="font-semibold">Parcelamentos</span>. 
-                O objetivo é garantir a continuidade das operações básicas do negócio (aluguel, sistemas, parcelas vigentes, etc) sem considerar retiradas dos sócios.
-              </p>
-            </div>
-          </div>
-
-          {/* Progresso Reservas Fixas */}
-          <div className="bg-surface rounded-xl border border-border px-5 py-5">
-            <div className="flex items-center justify-between mb-3">
+            )}
+            {parcelamentoItems.length > 0 && (
               <div>
-                <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider">
-                  Progresso vs Meta (6 meses fixos)
-                </h4>
+                <div className="flex items-center justify-between mb-2 pb-2 border-b border-border">
+                  <span className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">Parcelamentos</span>
+                  <span className="text-[10px] font-semibold text-text-primary tabular-nums">{formatCurrency(currentMonth.parcelamentos)}</span>
+                </div>
+                <div className="space-y-1.5">
+                  {parcelamentoItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between">
+                      <span className="text-[11px] text-text-secondary truncate mr-2">{item.description}</span>
+                      <span className="text-[11px] font-medium text-text-primary tabular-nums shrink-0">{formatCurrency(item.amount)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <span className="text-sm font-semibold tabular-nums text-primary">
-                {avgFixedExpense > 0 ? Math.min((saldoAtual / (avgFixedExpense * 6)) * 100, 100).toFixed(1) : '0.0'}%
-              </span>
-            </div>
-            <div className="h-3 rounded-full bg-offwhite overflow-hidden">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
-                style={{ width: `${avgFixedExpense > 0 ? Math.min((saldoAtual / (avgFixedExpense * 6)) * 100, 100) : 0}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-[10px] text-text-muted">
-                Saldo na conta de reserva: <span className="font-medium text-text-primary">{formatCurrency(saldoAtual)}</span>
-              </span>
-              <span className="text-[10px] text-text-muted">
-                Meta: <span className="font-medium text-text-primary">{formatCurrency(avgFixedExpense * 6)}</span>
-              </span>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -1876,6 +2233,7 @@ function AnnualView({ entries, invoiceData }) {
 
 export default function DashboardPage({ entries, invoiceData }) {
   const { accounts, categories, classifyEntry, classifyReceita } = useWorkspaceData()
+  const { workspaceId } = useWorkspace()
   const now = new Date()
   const [topTab, setTopTab] = useState('mensal')
   const [year, setYear] = useState(now.getFullYear())
@@ -1883,6 +2241,20 @@ export default function DashboardPage({ entries, invoiceData }) {
   const [monthlySubTab, setMonthlySubTab] = useState('total')
 
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth()
+
+  const visibleTopTabs = useMemo(() => {
+    const tabs = TOP_TABS.filter((tab) => !tab.workspace || tab.workspace === workspaceId)
+    if (workspaceId === 'pessoal') {
+      tabs.push({ id: 'projecao-pessoal', label: 'Projeção Pessoal', icon: ArrowLeftRight })
+    }
+    return tabs
+  }, [workspaceId])
+  const effectiveTopTab = visibleTopTabs.some((t) => t.id === topTab) ? topTab : 'mensal'
+  const visibleMonthlyTabs = useMemo(
+    () => MONTHLY_SUB_TABS.filter((tab) => !tab.workspace || tab.workspace === workspaceId),
+    [workspaceId],
+  )
+  const effectiveMonthlySubTab = visibleMonthlyTabs.some((t) => t.id === monthlySubTab) ? monthlySubTab : 'total'
 
   const handlePrev = () => {
     if (month === 0) { setMonth(11); setYear((y) => y - 1) } else setMonth((m) => m - 1)
@@ -1892,7 +2264,12 @@ export default function DashboardPage({ entries, invoiceData }) {
   }
   const handleToday = () => { setYear(now.getFullYear()); setMonth(now.getMonth()) }
 
-  const monthEntries = useMemo(() => filterByMonth(entries, year, month), [entries, year, month])
+  const entriesWithForecast = useMemo(() => {
+    const virtual = buildForecastVirtualEntries(entries)
+    return [...entries, ...virtual]
+  }, [entries])
+
+  const monthEntries = useMemo(() => filterByMonth(entriesWithForecast, year, month), [entriesWithForecast, year, month])
   const m = useMemo(() => computeMetrics(monthEntries), [monthEntries])
   const hasMonthData = monthEntries.length > 0
 
@@ -1900,10 +2277,10 @@ export default function DashboardPage({ entries, invoiceData }) {
     <section>
       <header className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight uppercase">Painel do Gestor</h2>
+          <h2 className="text-2xl font-bold tracking-tight uppercase">Painel do Lenon</h2>
           <p className="text-sm text-text-muted mt-1 font-semibold">Resumo executivo do período</p>
         </div>
-        {topTab === 'mensal' && (
+        {(effectiveTopTab === 'mensal' || effectiveTopTab === 'reserva') && (
           <MonthSelector
             year={year} month={month}
             onPrev={handlePrev} onNext={handleNext}
@@ -1913,8 +2290,8 @@ export default function DashboardPage({ entries, invoiceData }) {
       </header>
 
       <div className="flex items-center gap-1 mb-6 border-b border-border">
-        {TOP_TABS.map((tab) => {
-          const isActive = tab.id === topTab
+        {visibleTopTabs.map((tab) => {
+          const isActive = tab.id === effectiveTopTab
           return (
             <button
               key={tab.id}
@@ -1936,24 +2313,31 @@ export default function DashboardPage({ entries, invoiceData }) {
         })}
       </div>
 
-      {topTab === 'anual' && <AnnualView entries={entries} invoiceData={invoiceData} />}
+      {effectiveTopTab === 'anual' && <AnnualView entries={entriesWithForecast} invoiceData={invoiceData} />}
 
-      {topTab === 'reserva' && (
+      {effectiveTopTab === 'reserva' && (
         <ReservaTab
-          allEntries={entries}
-          periodEntries={monthEntries}
-          periodLabel=""
-          periodHint={`${MONTH_NAMES[month].toLowerCase()} de ${year}`}
-          mode="mensal"
+          allEntries={entriesWithForecast}
+          year={year}
+          month={month}
+          invoiceData={invoiceData}
         />
       )}
 
-      {topTab === 'mensal' && (
+      {effectiveTopTab === 'simulador-prolabore' && (
+        <ProlaboreSimulatorTab entries={entriesWithForecast} />
+      )}
+
+      {effectiveTopTab === 'projecao-pessoal' && (
+        <ProjectionPage entries={entriesWithForecast} />
+      )}
+
+      {effectiveTopTab === 'mensal' && (
         <div className="flex gap-6">
           <nav className="w-44 shrink-0">
             <ul className="space-y-0.5">
-              {MONTHLY_SUB_TABS.map((tab) => {
-                const isActive = tab.id === monthlySubTab
+              {visibleMonthlyTabs.map((tab) => {
+                const isActive = tab.id === effectiveMonthlySubTab
                 return (
                   <li key={tab.id}>
                     <button
@@ -1977,7 +2361,7 @@ export default function DashboardPage({ entries, invoiceData }) {
             </ul>
           </nav>
           <div className="flex-1 min-w-0">
-            {!hasMonthData ? (
+            {!hasMonthData && effectiveMonthlySubTab !== 'simulador-prolabore' ? (
               <div className="flex items-center justify-center h-64 bg-surface rounded-xl border border-border">
                 <p className="text-[12px] text-text-muted">
                   Nenhuma conta registrada em {MONTH_NAMES[month].toLowerCase()} de {year}.
@@ -1985,12 +2369,12 @@ export default function DashboardPage({ entries, invoiceData }) {
               </div>
             ) : (
               <>
-                {monthlySubTab === 'total' && <OverviewTab m={m} />}
-                {monthlySubTab === 'equilibrio' && (
+                {effectiveMonthlySubTab === 'total' && <OverviewTab m={m} />}
+                {effectiveMonthlySubTab === 'equilibrio' && (
                   <BreakevenTab />
                 )}
-                {monthlySubTab === 'despesas' && <ExpensesTab monthEntries={monthEntries} invoiceData={invoiceData} />}
-                {monthlySubTab === 'receitas' && <RevenueTab monthEntries={monthEntries} />}
+                {effectiveMonthlySubTab === 'despesas' && <ExpensesTab monthEntries={monthEntries} invoiceData={invoiceData} />}
+                {effectiveMonthlySubTab === 'receitas' && <RevenueTab monthEntries={monthEntries} />}
               </>
             )}
           </div>

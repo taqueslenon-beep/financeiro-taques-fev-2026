@@ -1,17 +1,18 @@
-import { LayoutDashboard, CalendarCheck, Landmark, ShieldAlert, ScrollText, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, CalendarCheck, Landmark, ShieldAlert, ScrollText, TrendingUp, ArrowLeftRight } from 'lucide-react'
 import { useWorkspace } from '../contexts/WorkspaceContext'
 
 const menuItems = [
-  { id: 'painel', label: 'Painel do Gestor', icon: LayoutDashboard },
+  { id: 'painel', label: 'Painel do Lenon', icon: LayoutDashboard },
   { id: 'contas-pagar-receber', label: 'Pagamentos / Recebimentos', icon: CalendarCheck },
   { id: 'lancamentos-por-conta', label: 'Contas Bancárias / Cartões', icon: Landmark },
-  { id: 'inadimplencia', label: 'Inadimplência', icon: ShieldAlert, comingSoon: true },
-  { id: 'gestao-contratos', label: 'Gestão de Contratos', icon: ScrollText, comingSoon: true },
-  { id: 'honorarios-exito', label: 'Honorários de Êxito', icon: TrendingUp, comingSoon: true },
+  { id: 'projecao-pessoal', label: 'Projeção: Sair de Casa', icon: ArrowLeftRight, workspace: 'pessoal' },
+  { id: 'inadimplencia', label: 'Inadimplência', icon: ShieldAlert, comingSoon: true, workspace: 'trabalho' },
+  { id: 'gestao-contratos', label: 'Gestão de Contratos', icon: ScrollText, comingSoon: true, workspace: 'trabalho' },
+  { id: 'honorarios-exito', label: 'Honorários de Êxito', icon: TrendingUp, comingSoon: true, workspace: 'trabalho' },
 ]
 
 export default function Sidebar({ activePage, onNavigate }) {
-  const { config } = useWorkspace()
+  const { config, workspaceId } = useWorkspace()
 
   return (
     <aside className="w-72 min-h-screen bg-surface border-r border-border flex flex-col">
@@ -24,7 +25,7 @@ export default function Sidebar({ activePage, onNavigate }) {
 
       <nav className="flex-1 px-3">
         <ul className="space-y-1">
-          {menuItems.map((item) => {
+          {menuItems.filter((item) => !item.workspace || item.workspace === workspaceId).map((item) => {
             const isActive = !item.comingSoon && item.id === activePage
 
             return (

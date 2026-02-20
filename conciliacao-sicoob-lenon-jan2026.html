@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conciliação Bancária — Sicoob Lenon — Janeiro 2026</title>
+<style>
+  :root {
+    --green: #004D4A;
+    --green-light: #e8f5f3;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --yellow: #d97706;
+    --yellow-light: #fffbeb;
+    --gray: #6b7280;
+    --gray-light: #f3f4f6;
+    --blue: #2563eb;
+    --blue-light: #eff6ff;
+    --bg: #fafaf8;
+    --text: #1a1a1a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 40px 24px;
+    line-height: 1.5;
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: var(--gray);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  .summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 28px 0 36px;
+  }
+
+  .card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gray);
+    margin-bottom: 6px;
+  }
+
+  .card-value {
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  .card-value.positive { color: var(--green); }
+  .card-value.negative { color: var(--red); }
+  .card-value.neutral { color: var(--text); }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--green);
+    margin: 36px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--green);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+  }
+
+  thead th {
+    background: var(--green);
+    color: #fff;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  thead th.right { text-align: right; }
+  thead th.center { text-align: center; }
+
+  tbody td {
+    padding: 9px 14px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: top;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #fafafa; }
+
+  .amount { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .amount.credit { color: var(--green); }
+  .amount.debit { color: var(--red); }
+  .amount.saldo { color: var(--text); font-weight: 700; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .badge-match { background: var(--green-light); color: var(--green); }
+  .badge-partial { background: var(--yellow-light); color: var(--yellow); }
+  .badge-new { background: var(--blue-light); color: var(--blue); }
+  .badge-pending { background: var(--gray-light); color: var(--gray); }
+  .badge-question { background: var(--red-light); color: var(--red); }
+  .badge-internal { background: #f0e6ff; color: #7c3aed; }
+
+  .detail { font-size: 11px; color: var(--gray); margin-top: 2px; }
+
+  .row-match { background: var(--green-light) !important; }
+  .row-new { background: var(--blue-light) !important; }
+  .row-question { background: var(--red-light) !important; }
+  .row-saldo { background: var(--gray-light) !important; font-weight: 600; }
+  .row-internal { background: #f0e6ff !important; }
+
+  .num {
+    text-align: center;
+    font-weight: 800;
+    font-size: 16px;
+    color: var(--green);
+    min-width: 36px;
+  }
+
+  .num.question { color: var(--red); }
+  .num.adjust { color: var(--yellow); }
+  .num.done { color: var(--green); opacity: 0.4; }
+  .num.internal { color: #7c3aed; }
+
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 20px 0 10px;
+    font-size: 12px;
+    color: var(--gray);
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .note-box {
+    background: var(--yellow-light);
+    border: 1px solid #fbbf24;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 20px 0;
+    font-size: 13px;
+    color: #92400e;
+  }
+
+  .footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 11px;
+    color: var(--gray);
+    text-align: center;
+  }
+
+  @media print {
+    body { padding: 10px; font-size: 11px; }
+    .card { break-inside: avoid; }
+    table { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Conciliação Bancária</h1>
+  <p class="subtitle">Sicoob — Conta principal (Lenon) &nbsp;|&nbsp; Coop. 3031-7 &nbsp;|&nbsp; Conta 148.354-4 &nbsp;|&nbsp; Período: 01/01/2026 a 31/01/2026</p>
+
+  <!-- RESUMO -->
+  <div class="summary-cards">
+    <div class="card">
+      <div class="card-label">Saldo Anterior (31/12)</div>
+      <div class="card-value positive">R$ 3.704,40</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Total Entradas</div>
+      <div class="card-value positive">R$ 46.079,12</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Total Saídas</div>
+      <div class="card-value negative">-R$ 44.030,99</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Saldo Final (31/01)</div>
+      <div class="card-value neutral">R$ 5.752,53</div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>Como usar:</strong> Cada lançamento que precisa de ação tem um <strong>número (#)</strong> na primeira coluna.
+    Me diga pelo número o que fazer. Ex: <em>"Item 1: é pró-labore. Item 8: salário da Berna. Item 53: honorários caso X."</em>
+  </div>
+
+  <!-- LEGENDA -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--green-light);border:1px solid var(--green)"></div> Identificado (sugestão)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--yellow-light);border:1px solid var(--yellow)"></div> Ajuste necessário</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--blue-light);border:1px solid var(--blue)"></div> Novo (precisa criar)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--red-light);border:1px solid var(--red)"></div> A identificar (preciso que me diga)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f0e6ff;border:1px solid #7c3aed"></div> Transf. entre contas (interna)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--gray-light);border:1px solid var(--gray)"></div> Saldo do dia</div>
+  </div>
+
+  <!-- EXTRATO COMPLETO -->
+  <div class="section-title">Extrato Completo com Numeração — Janeiro 2026</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="center" style="width:45px">#</th>
+        <th style="width:65px">Data</th>
+        <th>Histórico / Descrição</th>
+        <th class="right" style="width:120px">Valor</th>
+        <th class="right" style="width:100px">Saldo</th>
+        <th style="width:130px">Status</th>
+        <th style="width:220px">Sugestão / Vínculo</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- SALDO ANTERIOR -->
+      <tr class="row-saldo">
+        <td></td>
+        <td>31/12</td>
+        <td>SALDO ANTERIOR</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">3.704,40</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 02/01 ═══════════════ -->
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>02/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — DOC 24299245</div></td>
+        <td class="amount debit">-1.000,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 800</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>02/01</td>
+        <td>COMPRA NAC DEBIT<div class="detail">PamelaRussiBacca ITAPEMA BRA — DOC 290011 (pró-labore)</div></td>
+        <td class="amount debit">-373,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 801</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>02/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — DOC 24296665</div></td>
+        <td class="amount debit">-300,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 802</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>02/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">2.031,40</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 05/01 ═══════════════ -->
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>05/01</td>
+        <td>DEB PACOTE SERVIÇOS<div class="detail">Tarifa bancária — DOC 129</div></td>
+        <td class="amount debit">-30,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 850</strong> — Tarifa bancária Sicoob (Fixa, dia 5)</td>
+      </tr>
+      <tr class="row-question">
+        <td class="num question">5</td>
+        <td>05/01</td>
+        <td>PIX EMIT.OUTRA IF<div class="detail">CNPJ 42.622.638/0001-04 — R$ 1.389,66</div></td>
+        <td class="amount debit">-1.389,66</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>Mesmo CNPJ do #27 de fev — o que é?</td>
+      </tr>
+      <tr class="row-internal">
+        <td class="num internal">6</td>
+        <td>05/01</td>
+        <td>PIX REC.OUTRA IF MT<div class="detail">De: Taques PJ (outra IF) — CNPJ 45.936.503</div></td>
+        <td class="amount credit">+500,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-internal">Transf. interna</span></td>
+        <td>Transferência entre contas Taques?</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>05/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Osvaldo Borguezam — DOC 24339240</div></td>
+        <td class="amount debit">-50,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 870</strong> — Instalações elétricas (Variável)</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>05/01</td>
+        <td>PIX — Pró-labore Berna<div class="detail">CPF ***587.149 — "prolabore Berna dezembro 2025"</div></td>
+        <td class="amount debit">-1.200,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Pró-labore Berna (ref. dez/2025)</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>05/01</td>
+        <td>PIX — Limpeza<div class="detail">CPF ***587.149 — "limpeza dezembro 2025"</div></td>
+        <td class="amount debit">-300,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Limpeza escritório (ref. dez/2025)</td>
+      </tr>
+      <tr class="row-internal">
+        <td class="num internal">8</td>
+        <td>05/01</td>
+        <td>PIX REC.OUTRA IF MT<div class="detail">De: Taques PJ (outra IF) — CNPJ 45.936.503</div></td>
+        <td class="amount credit">+2.000,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-internal">Transf. interna</span></td>
+        <td>Transferência entre contas Taques?</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>05/01</td>
+        <td>PIX — Seguro do Jetta<div class="detail">CNPJ 61.550.141 — Apólice 316520250959248 — Parcela 1/12</div></td>
+        <td class="amount debit">-511,19</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 880</strong> — Seguro do Jetta (Parcela 1/12, 12x dia 5)</td>
+      </tr>
+      <tr class="row-question">
+        <td class="num question">10</td>
+        <td>05/01</td>
+        <td>PIX — CNPJ 08.336.783 (7 pagamentos)<div class="detail">R$ 12,34 + R$ 38,94 + R$ 133,88 + R$ 105,02 + R$ 174,49 + R$ 271,61 + R$ 169,84 = <strong>R$ 906,12</strong></div></td>
+        <td class="amount debit">-906,12</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>7 pagamentos para mesmo CNPJ — impostos/DAS? O que é?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>05/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">144,43</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 06/01 ═══════════════ -->
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>06/01</td>
+        <td>PIX — Elétrica escritório (2x)<div class="detail">CPF ***587.149 — "eletrica escritorio" — R$ 52 + R$ 200</div></td>
+        <td class="amount debit">-252,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Manutenção elétrica escritório</td>
+      </tr>
+      <tr class="row-internal">
+        <td class="num internal">11</td>
+        <td>06/01</td>
+        <td>PIX REC.OUTRA IF MT<div class="detail">De: Taques PJ (outra IF) — CNPJ 45.936.503</div></td>
+        <td class="amount credit">+500,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-internal">Transf. interna</span></td>
+        <td>Transferência entre contas Taques?</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">12</td>
+        <td>06/01</td>
+        <td>PIX Recebido — Fauri Batista<div class="detail">CPF ***753.399 — R$ 120</div></td>
+        <td class="amount credit">+120,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Receita — honorários de qual caso?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>06/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">512,43</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 07/01 ═══════════════ -->
+      <tr class="row-new">
+        <td class="num adjust">13</td>
+        <td>07/01</td>
+        <td>PIX — Marketing jurídico (2x)<div class="detail">CNPJ 41.907.594 — "Prestacao de servicos de assessoria de marketing juridico"<br>R$ 1.755,53 + R$ 1.738,53 = <strong>R$ 3.494,06</strong></div></td>
+        <td class="amount debit">-3.494,06</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-partial">Ajuste</span></td>
+        <td>Marketing — mesmo fornecedor do id 300 (fev). Dois pagamentos?</td>
+      </tr>
+      <tr class="row-internal">
+        <td class="num internal">14</td>
+        <td>07/01</td>
+        <td>PIX REC.OUTRA IF MT<div class="detail">De: Taques PJ (outra IF) — R$ 3.250</div></td>
+        <td class="amount credit">+3.250,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-internal">Transf. interna</span></td>
+        <td>Transferência entre contas Taques?</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">15</td>
+        <td>07/01</td>
+        <td>DÉB.PGTO.BOLETO INT<div class="detail">Pagamento de cartão de crédito — DOC 24372783</div></td>
+        <td class="amount debit">-3.295,79</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Fatura cartão de crédito (dez/2025?)</td>
+      </tr>
+      <tr class="row-internal">
+        <td class="num internal">16</td>
+        <td>07/01</td>
+        <td>PIX REC.OUTRA IF MT<div class="detail">De: Taques PJ (outra IF) — R$ 3.050</div></td>
+        <td class="amount credit">+3.050,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-internal">Transf. interna</span></td>
+        <td>Transferência entre contas Taques?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>07/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">22,58</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 08/01 ═══════════════ -->
+      <tr class="row-new">
+        <td class="num">17</td>
+        <td>08/01</td>
+        <td>PIX Recebido — Lenon PF → PJ<div class="detail">De: Lenon Gustavo Batista Taques (PF) — R$ 50</div></td>
+        <td class="amount credit">+50,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Aporte do sócio?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>08/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">72,58</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 09/01 ═══════════════ -->
+      <tr class="row-new">
+        <td class="num">18</td>
+        <td>09/01</td>
+        <td>PIX Recebido — João Cezar Follador<div class="detail">CPF ***063.919 — R$ 200</div></td>
+        <td class="amount credit">+200,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Receita — honorários de qual caso?</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">19</td>
+        <td>09/01</td>
+        <td>PIX Recebido — Gilberto Batista Mendes<div class="detail">CNPJ 32.080.305/0001-47 — R$ 325</div></td>
+        <td class="amount credit">+325,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Receita — honorários / repasse Gilberto?</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">20</td>
+        <td>09/01</td>
+        <td>PIX Recebido — Gilberto Batista Mendes<div class="detail">CNPJ 32.080.305/0001-47 — R$ 370 — "pagamento parte software escritorio"</div></td>
+        <td class="amount credit">+370,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Software escritório — rateio Gilberto?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>09/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">967,58</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 12/01 ═══════════════ -->
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>12/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — DOC 24426276</div></td>
+        <td class="amount debit">-500,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 800</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>12/01</td>
+        <td>PIX — Prod. limpeza escritório<div class="detail">CPF ***587.149 — "produtos de limpeza escritorio" — R$ 40,76</div></td>
+        <td class="amount debit">-40,76</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Produtos limpeza escritório</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>12/01</td>
+        <td>PIX — Papelaria escritório<div class="detail">CPF ***587.149 — "papelaria escritorio pastas" — R$ 108,11</div></td>
+        <td class="amount debit">-108,11</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Material de escritório (papelaria)</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">22</td>
+        <td>12/01</td>
+        <td>Fatura Mastercard (estorno + débito)<div class="detail">EST.DÉB.CONV.DEM.EM +R$ 3.295,79 / DÉB.CONV.DEM.EMPRES -R$ 3.295,79<br>DOC: MASTERCARD — resultado líquido: R$ 0</div></td>
+        <td class="amount saldo">0,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-pending">Info</span></td>
+        <td>Estorno + redébito fatura — efeito zero</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>12/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">318,71</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 13/01 ═══════════════ -->
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>13/01</td>
+        <td>TRANSF. PIX SICOOB — 3 transferências<div class="detail">FAV.: Lenon PF — R$ 100 + R$ 100 + R$ 100 = <strong>R$ 300</strong><br>DOC: 24478008 / 24475343 / 24467792</div></td>
+        <td class="amount debit">-300,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 803</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>13/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">18,71</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 14/01 ═══════════════ -->
+      <tr class="row-new">
+        <td class="num">24</td>
+        <td>14/01</td>
+        <td>RESGATE RDC<div class="detail">Resgate de aplicação — DOC 41 - 16</div></td>
+        <td class="amount credit">+2.003,33</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Resgate investimento (RDC) — como categorizar?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>14/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">2.022,04</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 15/01 ═══════════════ -->
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>15/01</td>
+        <td>PIX — Aluguel Sala 2<div class="detail">CNPJ 46.684.917/0001-53 — R$ 990</div></td>
+        <td class="amount debit">-990,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Aluguel Sala 2 (mesmo id 102 de fev)</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>15/01</td>
+        <td>PIX — Aluguel Sala 1<div class="detail">CNPJ 46.684.917/0001-53 — R$ 920</div></td>
+        <td class="amount debit">-920,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Aluguel Sala 1 (mesmo id 101 de fev)</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">25</td>
+        <td>15/01</td>
+        <td>PIX Recebido — Ricardo José Teixeira<div class="detail">CNPJ 11.691.304/0001-69 — R$ 40</div></td>
+        <td class="amount credit">+40,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Receita — honorários de qual caso?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>15/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">152,04</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 19/01 ═══════════════ -->
+      <tr class="row-question">
+        <td class="num question">26</td>
+        <td>19/01</td>
+        <td>PIX EMIT.OUTRA IF<div class="detail">CNPJ 10.956.157/0001-49 — "de 15 12 2025 ate 14 01 2026"</div></td>
+        <td class="amount debit">-122,41</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>Serviço mensal (dez/jan) — o que é?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>19/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">29,63</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 26/01 ═══════════════ -->
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>26/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — R$ 1.000 — DOC 24639841</div></td>
+        <td class="amount debit">-1.000,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 804</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr class="row-question">
+        <td class="num question">28</td>
+        <td>26/01</td>
+        <td>PIX EMIT.OUTRA IF<div class="detail">CNPJ 28.555.251/0001-51 — R$ 200</div></td>
+        <td class="amount debit">-200,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>O que é esse pagamento?</td>
+      </tr>
+      <tr class="row-question">
+        <td class="num question">29</td>
+        <td>26/01</td>
+        <td>PIX EMIT.OUTRA IF<div class="detail">CNPJ 00.394.460/0058-87 — "Solicitacao Pix" — R$ 958,38</div></td>
+        <td class="amount debit">-958,38</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>Valor alto — o que é?</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>26/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — R$ 1.000 — DOC 24634261</div></td>
+        <td class="amount debit">-1.000,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 805</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>26/01</td>
+        <td>PIX — Produtos de limpeza<div class="detail">CPF ***587.149 — "produtos de limpeza" — R$ 109</div></td>
+        <td class="amount debit">-109,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Produtos limpeza escritório</td>
+      </tr>
+      <tr class="row-question">
+        <td class="num question">31</td>
+        <td>26/01</td>
+        <td>PIX — CPF ***587.149<div class="detail">"outros" — R$ 175</div></td>
+        <td class="amount debit">-175,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>Descrito como "outros" — o que é?</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>26/01</td>
+        <td>PIX — Honorários Gilberto<div class="detail">CPF ***587.149 — "honorarios Gilberto" — R$ 499,23</div></td>
+        <td class="amount debit">-499,23</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Honorários Gilberto (terceiros)</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>26/01</td>
+        <td>PIX — Mercado<div class="detail">CPF ***587.149 — "mercado" — R$ 383</div></td>
+        <td class="amount debit">-383,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Mercado / alimentação</td>
+      </tr>
+      <tr class="row-question">
+        <td class="num question">32</td>
+        <td>26/01</td>
+        <td>PIX — Schmidmeier<div class="detail">CNPJ 37.932.772/0001-71 — R$ 15.000</div></td>
+        <td class="amount debit">-15.000,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>Valor muito alto — o que é Schmidmeier?</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">33</td>
+        <td>26/01</td>
+        <td>PIX — TV Semp Toshiba<div class="detail">CNPJ 57.508.195/0001-00 — "tv semp Toshiba" — R$ 899,99</div></td>
+        <td class="amount debit">-899,99</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Compra TV — ativo imobilizado ou pessoal?</td>
+      </tr>
+      <tr class="row-question">
+        <td class="num question">34</td>
+        <td>26/01</td>
+        <td>PIX EMIT.OUTRA IF<div class="detail">CNPJ 53.812.769/0001-70 — R$ 500</div></td>
+        <td class="amount debit">-500,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>O que é esse pagamento?</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">35</td>
+        <td>26/01</td>
+        <td>CRED.TR.CT.INTERCRE — Refloresta Imóveis<div class="detail">REM.: REFLORESTA IMOVEIS LTDA — DOC 3035</div></td>
+        <td class="amount credit">+30.000,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Receita R$ 30 mil — honorários / venda?</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>26/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — R$ 100 — DOC 24620637</div></td>
+        <td class="amount debit">-100,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 806</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr class="row-internal">
+        <td class="num internal">37</td>
+        <td>26/01</td>
+        <td>PIX REC.OUTRA IF MT<div class="detail">De: Taques PJ (outra IF) — R$ 200</div></td>
+        <td class="amount credit">+200,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-internal">Transf. interna</span></td>
+        <td>Transferência entre contas Taques?</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>26/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — R$ 200 — DOC 24617377</div></td>
+        <td class="amount debit">-200,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 807</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">39</td>
+        <td>26/01</td>
+        <td>PIX Recebido — Jaqueline Paloma Felicio Colaço<div class="detail">CPF ***350.479 — R$ 175</div></td>
+        <td class="amount credit">+175,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Receita — honorários de qual caso?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>26/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">9.380,03</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 27/01 ═══════════════ -->
+      <tr class="row-new">
+        <td class="num">40</td>
+        <td>27/01</td>
+        <td>TRANSF. PIX SICOOB — Osvaldo Borguezam<div class="detail">FAV.: Osvaldo Borguezam — "instalacoes eletricas" — R$ 122</div></td>
+        <td class="amount debit">-122,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Instalações elétricas — manutenção escritório</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">~</td>
+        <td>27/01</td>
+        <td>PIX — Limpeza teto escritório<div class="detail">CPF ***587.149 — "produtos limpeza teto escritorio" — R$ 195,90</div></td>
+        <td class="amount debit">-195,90</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Identificado</span></td>
+        <td>Produtos limpeza escritório</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>27/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — R$ 1.608 — DOC 24648043</div></td>
+        <td class="amount debit">-1.608,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 808</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>27/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — R$ 270 — DOC 24647766</div></td>
+        <td class="amount debit">-270,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 809</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr class="row-question">
+        <td class="num question">43</td>
+        <td>27/01</td>
+        <td>PIX EMIT.OUTRA IF<div class="detail">CPF ***605.909 — R$ 200</div></td>
+        <td class="amount debit">-200,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>Pagamento para CPF desconhecido — o que é?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>27/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">6.984,13</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 28/01 ═══════════════ -->
+      <tr class="row-new">
+        <td class="num">44</td>
+        <td>28/01</td>
+        <td>PIX — Masterpizza<div class="detail">CNPJ 43.098.655/0001-57 — MASTERPIZZA — R$ 77,51</div></td>
+        <td class="amount debit">-77,51</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Alimentação / delivery?</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">45</td>
+        <td>28/01</td>
+        <td>COMPRA DÉBITO — Comercial Mallon<div class="detail">COMERCIAL MALLON LTDA MAFRA — R$ 131,10</div></td>
+        <td class="amount debit">-131,10</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Suprimentos / compra?</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">46</td>
+        <td>28/01</td>
+        <td>COMPRA DÉBITO — Espaço Alamos<div class="detail">ESPACO ALAMOS MAFRA — R$ 14</div></td>
+        <td class="amount debit">-14,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Alimentação / lazer?</td>
+      </tr>
+      <tr class="row-new">
+        <td class="num">47</td>
+        <td>28/01</td>
+        <td>COMPRA DÉBITO — Planalto Conveniência<div class="detail">PLANALTO CONVENIENCIA CANOINHAS — R$ 49</div></td>
+        <td class="amount debit">-49,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-new">Novo</span></td>
+        <td>Conveniência / alimentação?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>28/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">6.712,52</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 29/01 ═══════════════ -->
+      <tr class="row-question">
+        <td class="num question">48</td>
+        <td>29/01</td>
+        <td>PIX EMIT.OUTRA IF<div class="detail">CNPJ 57.508.195/0001-00 — R$ 459,99</div></td>
+        <td class="amount debit">-459,99</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-question">A identificar</span></td>
+        <td>Mesmo CNPJ da TV (#33) — outra compra?</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>29/01</td>
+        <td>SALDO DO DIA</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">6.252,53</td>
+        <td></td>
+        <td></td>
+      </tr>
+
+      <!-- ═══════════════ 30/01 ═══════════════ -->
+      <tr style="background:var(--green-light)">
+        <td class="num done">✓</td>
+        <td>30/01</td>
+        <td>TRANSF. PIX SICOOB<div class="detail">FAV.: Lenon PF — R$ 500 — DOC 24692296</div></td>
+        <td class="amount debit">-500,00</td>
+        <td class="amount"></td>
+        <td><span class="badge badge-match">Conciliado ✓</span></td>
+        <td><strong>id 810</strong> — Pró-labore Lenon</td>
+      </tr>
+      <tr class="row-saldo">
+        <td></td>
+        <td>30/01</td>
+        <td>SALDO FINAL</td>
+        <td class="amount saldo"></td>
+        <td class="amount saldo">5.752,53</td>
+        <td></td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- RESUMO POR CATEGORIA -->
+  <div class="section-title">Resumo por Categoria (Prévia)</div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Categoria</th>
+        <th>Itens</th>
+        <th class="right">Total</th>
+        <th>Observação</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="background:var(--green-light)">
+        <td><strong>Pró-labore Lenon ✓</strong></td>
+        <td>id 800–810 (11 lançamentos)</td>
+        <td class="amount debit">-6.651,00</td>
+        <td>Conciliado — inclui #2 (R$373 compra débito PJ)</td>
+      </tr>
+      <tr>
+        <td><strong>Transf. internas Taques</strong></td>
+        <td>#6, 8, 11, 14, 16, 37</td>
+        <td class="amount credit">+9.500,00</td>
+        <td>PIX recebidos de Taques (outra IF) — transferência entre contas?</td>
+      </tr>
+      <tr>
+        <td><strong>Receitas (honorários/clientes)</strong></td>
+        <td>#12, 17, 18, 19, 20, 25, 35, 39</td>
+        <td class="amount credit">+33.160,00</td>
+        <td>Inclui R$ 30k da Refloresta</td>
+      </tr>
+      <tr>
+        <td><strong>Aluguel (Sala 1 + 2)</strong></td>
+        <td>~, ~</td>
+        <td class="amount debit">-1.910,00</td>
+        <td>Identificados automaticamente</td>
+      </tr>
+      <tr>
+        <td><strong>Marketing jurídico</strong></td>
+        <td>#13</td>
+        <td class="amount debit">-3.494,06</td>
+        <td>Dois pagamentos para CNPJ 41.907.594</td>
+      </tr>
+      <tr>
+        <td><strong>Fatura cartão crédito</strong></td>
+        <td>#15, #22</td>
+        <td class="amount debit">-3.295,79</td>
+        <td>Pagamento via boleto + estorno/redébito</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td><strong>Tarifa bancária ✓</strong></td>
+        <td>id 850 (jan/2026 pago, fev–dez pendentes)</td>
+        <td class="amount debit">-30,00</td>
+        <td>Conciliado — R$ 30/mês, fixa, dia 5</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td><strong>Seguro do Jetta ✓</strong></td>
+        <td>id 880–891 (12 parcelas, jan paga)</td>
+        <td class="amount debit">-511,19</td>
+        <td>Conciliado — R$ 511,19/mês, dia 5</td>
+      </tr>
+      <tr style="background:var(--green-light)">
+        <td><strong>Escritório (limpeza/manutenção) ✓</strong></td>
+        <td>~, ~, ~, id 870, #40</td>
+        <td class="amount debit">-1.097,77</td>
+        <td>Inclui Osvaldo Borguezam (id 870, variável)</td>
+      </tr>
+      <tr>
+        <td><strong>A identificar (urgente)</strong></td>
+        <td>#5, 10, 26, 28, 29, 31, 32, 34, 43, 48</td>
+        <td class="amount debit">-19.011,56</td>
+        <td>Preciso que me diga o que são</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- RESUMO FINAL -->
+  <div class="section-title">Resumo Final</div>
+
+  <div class="summary-cards">
+    <div class="card" style="border-left: 4px solid var(--green);">
+      <div class="card-label">Conciliados</div>
+      <div class="card-value positive">22</div>
+      <div class="detail" style="margin-top:4px">11 pró-labore (id 800–810) + 8 identificados + #4 tarifa + #7 elétrica + #9 seguro Jetta</div>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--blue);">
+      <div class="card-label">Itens para classificar</div>
+      <div class="card-value" style="color:var(--blue)">25</div>
+      <div class="detail" style="margin-top:4px">Itens restantes — me diga o que fazer com cada um</div>
+    </div>
+    <div class="card" style="border-left: 4px solid var(--red);">
+      <div class="card-label">A identificar (urgente)</div>
+      <div class="card-value negative">10</div>
+      <div class="detail" style="margin-top:4px">#5 (R$1.389) · #10 (R$906) · #26 (R$122) · #28 (R$200) · #29 (R$958) · #31 (R$175) · #32 (R$15.000) · #34 (R$500) · #43 (R$200) · #48 (R$460)</div>
+    </div>
+    <div class="card" style="border-left: 4px solid #7c3aed;">
+      <div class="card-label">Transf. internas (conferir)</div>
+      <div class="card-value" style="color:#7c3aed">6</div>
+      <div class="detail" style="margin-top:4px">#6, 8, 11, 14, 16, 37 — R$ 9.500 recebidos de outra conta Taques</div>
+    </div>
+  </div>
+
+  <div class="note-box">
+    <strong>Pró-labore Lenon conciliado!</strong> 11 lançamentos (id 800–810) = R$ 6.651,00
+    <br><strong>Novos conciliados:</strong> #4 (tarifa bancária, id 850) · #7 (elétrica Osvaldo, id 870) · #9 (seguro Jetta, id 880)
+    <br><br><strong>Faltam classificar:</strong> #5, 6, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 24, 25, 26, 28, 29, 31, 32, 33, 34, 35, 37, 39, 40, 43, 44, 45, 46, 47, 48
+    <br>Itens marcados com <strong>~</strong> ou <strong>✓</strong> já foram identificados/conciliados.
+    <br>Me diga pelo número o que fazer com os restantes.
+  </div>
+
+  <div class="footer">
+    Gerado automaticamente — Sistema Financeiro Taques &nbsp;|&nbsp; 19/02/2026
+  </div>
+
+</div>
+</body>
+</html>

@@ -17,9 +17,6 @@ const statusOptions = [
   { id: 'atrasado', label: 'Atrasado' },
 ]
 
-const receitaCategories = getCategoriesByType('receita')
-const despesaCategories = getCategoriesByType('despesa')
-
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -621,6 +618,8 @@ function TabParceiros({ partners, setPartners, form, currentUser }) {
 
 export default function RateioModal({ isOpen, onClose, onSave, currentUser }) {
   const { getGroupedAccountsForUser, getCategoriesByType } = useWorkspaceData()
+  const receitaCategories = getCategoriesByType('receita')
+  const despesaCategories = getCategoriesByType('despesa')
   const [activeTab, setActiveTab] = useState('receita')
   const [form, setForm] = useState({
     description: '',

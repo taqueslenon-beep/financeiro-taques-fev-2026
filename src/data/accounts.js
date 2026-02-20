@@ -74,10 +74,17 @@ export const personalAccounts = [
     type: 'banco',
   },
   {
-    id: 'cartao-pessoal-lenon',
-    label: 'Cartão de Crédito Pessoal (Lenon)',
+    id: 'cartao-sicoob-pessoal-lenon',
+    label: 'Cartão Sicoob — Lenon',
     owner: 'lenon',
-    color: '#2563eb',
+    color: '#004D4A',
+    type: 'cartao',
+  },
+  {
+    id: 'cartao-bb-pessoal-lenon',
+    label: 'Cartão Banco do Brasil — Lenon',
+    owner: 'lenon',
+    color: '#F9D71C',
     type: 'cartao',
   },
   {
@@ -93,20 +100,6 @@ export const personalAccounts = [
     owner: 'lenon',
     color: '#1d4ed8',
     type: 'reserva',
-  },
-  {
-    id: 'banco-pessoal-berna',
-    label: 'Conta Pessoal — Sicoob (Berna)',
-    owner: 'berna',
-    color: '#7c3aed',
-    type: 'banco',
-  },
-  {
-    id: 'cartao-pessoal-berna',
-    label: 'Cartão de Crédito Pessoal (Berna)',
-    owner: 'berna',
-    color: '#8b5cf6',
-    type: 'cartao',
   },
 ]
 

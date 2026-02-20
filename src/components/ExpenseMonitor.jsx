@@ -1,5 +1,5 @@
 import { Check } from 'lucide-react'
-import { useWorkspaceData } from '../contexts/WorkspaceContext'
+import { useWorkspaceData, useWorkspace } from '../contexts/WorkspaceContext'
 
 /* ------------------------------------------------------------------ */
 /*  Formatação                                                         */
@@ -43,7 +43,25 @@ const CLASSIFY_KEY_MAP = {
   'Retirada Gilberto': 'gilberto',
   'Pró-labore': 'prolabore',
   'Variável': 'variavel',
+  'Previsão': 'previsao',
 }
+
+const WORK_COLUMNS = [
+  { key: 'fixa', title: 'Fixa' },
+  { key: 'impostos', title: 'Impostos' },
+  { key: 'parcelamento', title: 'Parcelamento' },
+  { key: 'repasse', title: 'Repasse Parceiros' },
+  { key: 'prolabore', title: 'Pró-labore' },
+  { key: 'gilberto', title: 'Retirada Gilberto' },
+  { key: 'variavel', title: 'Variável' },
+]
+
+const PERSONAL_COLUMNS = [
+  { key: 'fixa', title: 'Fixa' },
+  { key: 'previsao', title: 'Previsão' },
+  { key: 'parcelamento', title: 'Parcelamento' },
+  { key: 'variavel', title: 'Variável' },
+]
 
 function sortBlock(entries) {
   return [...entries].sort((a, b) => {
@@ -128,7 +146,7 @@ function MonitorItem({ row, isLast, onSettle, onReverse }) {
             isPaid ? 'text-text-muted' : 'text-text-secondary'
           }`}
         >
-          {formatDate(row.dueDate)}
+          {row._hideDueDate ? '—' : formatDate(row.dueDate)}
         </span>
       </div>
     </div>
@@ -203,10 +221,17 @@ function ExpenseColumn({ title, entries, onSettle, onReverse }) {
 
 export default function ExpenseMonitor({ expenses, onSettle, onReverse }) {
   const { classifyEntry } = useWorkspaceData()
-  const groups = { fixa: [], impostos: [], parcelamento: [], repasse: [], gilberto: [], prolabore: [], variavel: [] }
+  const { workspaceId } = useWorkspace()
+
+  const columns = workspaceId === 'pessoal' ? PERSONAL_COLUMNS : WORK_COLUMNS
+  const gridCols = workspaceId === 'pessoal' ? 'grid-cols-4' : 'grid-cols-3'
+
+  const groups = {}
+  for (const col of columns) groups[col.key] = []
   for (const e of expenses) {
     const key = CLASSIFY_KEY_MAP[classifyEntry(e)] || 'variavel'
-    groups[key].push(e)
+    if (groups[key]) groups[key].push(e)
+    else if (groups.variavel) groups.variavel.push(e)
   }
 
   const totalPrevisto = expenses.reduce((sum, e) => sum + Math.abs(e.amount), 0)
@@ -224,49 +249,16 @@ export default function ExpenseMonitor({ expenses, onSettle, onReverse }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4 items-start">
-        <ExpenseColumn
-          title="Fixa"
-          entries={groups.fixa}
-          onSettle={onSettle}
-          onReverse={onReverse}
-        />
-        <ExpenseColumn
-          title="Impostos"
-          entries={groups.impostos}
-          onSettle={onSettle}
-          onReverse={onReverse}
-        />
-        <ExpenseColumn
-          title="Parcelamento"
-          entries={groups.parcelamento}
-          onSettle={onSettle}
-          onReverse={onReverse}
-        />
-        <ExpenseColumn
-          title="Repasse Parceiros"
-          entries={groups.repasse}
-          onSettle={onSettle}
-          onReverse={onReverse}
-        />
-        <ExpenseColumn
-          title="Pró-labore"
-          entries={groups.prolabore}
-          onSettle={onSettle}
-          onReverse={onReverse}
-        />
-        <ExpenseColumn
-          title="Retirada Gilberto"
-          entries={groups.gilberto}
-          onSettle={onSettle}
-          onReverse={onReverse}
-        />
-        <ExpenseColumn
-          title="Variável"
-          entries={groups.variavel}
-          onSettle={onSettle}
-          onReverse={onReverse}
-        />
+      <div className={`grid ${gridCols} gap-4 items-start`}>
+        {columns.map((col) => (
+          <ExpenseColumn
+            key={col.key}
+            title={col.title}
+            entries={groups[col.key] || []}
+            onSettle={onSettle}
+            onReverse={onReverse}
+          />
+        ))}
       </div>
 
       <div className="flex items-center justify-end gap-6 px-1">

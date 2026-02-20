@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, ChevronDown } from 'lucide-react'
-import { useWorkspaceData } from '../contexts/WorkspaceContext'
+import { useWorkspaceData, useWorkspace } from '../contexts/WorkspaceContext'
+import { tipoOptions as defaultTipoOptions } from '../data/categories'
 
 /* ------------------------------------------------------------------ */
 /*  Constantes                                                         */
@@ -9,6 +10,8 @@ import { useWorkspaceData } from '../contexts/WorkspaceContext'
 const INITIAL_STATE = {
   accountId: '',
   recurrence: '',
+  forecastFrequency: '',
+  forecastStartMonth: '',
   categoryId: '',
   captador: '',
   description: '',
@@ -43,6 +46,12 @@ const ownerOptions = [
   { id: 'berna', label: 'Berna' },
 ]
 
+const forecastFrequencyOptions = [
+  { id: 'semanal', label: 'Semanal' },
+  { id: 'mensal', label: 'Mensal' },
+  { id: 'anual', label: 'Anual' },
+]
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -63,6 +72,16 @@ function parseCurrencyToNumber(formatted) {
 
 function capitalizeFirst(str) {
   return str ? str.charAt(0).toUpperCase() + str.slice(1) : ''
+}
+
+function formatRecurrenceLabel(recurrenceId) {
+  const map = {
+    fixa: 'Fixa',
+    previsao: 'Previsão',
+    variavel: 'Variável',
+    parcelamento: 'Parcelamento',
+  }
+  return map[recurrenceId] || capitalizeFirst(recurrenceId)
 }
 
 /* ------------------------------------------------------------------ */
@@ -148,6 +167,9 @@ function SideTab({ label, active, onClick, disabled = false }) {
 function TabGeral({ form, setField, entryType }) {
   const isDespesa = entryType === 'despesa'
   const isReceita = entryType === 'receita'
+  const dueDateHint = isDespesa && form.recurrence === 'previsao'
+    ? 'Opcional para lançamentos de previsão.'
+    : ''
 
   const handleAmountChange = (e) => {
     const raw = e.target.value.replace(/\D/g, '')
@@ -197,6 +219,7 @@ function TabGeral({ form, setField, entryType }) {
           type="date"
           value={form.dueDate}
           onChange={(e) => setField('dueDate', e.target.value)}
+          hint={dueDateHint}
         />
         <Input
           label={settlementLabel}
@@ -227,6 +250,10 @@ function TabGeral({ form, setField, entryType }) {
 /* ------------------------------------------------------------------ */
 
 function TabClassificacao({ form, setField, currentUser, entryType, isEditing }) {
+  const { getCategoriesByType, getGroupedAccountsForUser, tipoOptions: workspaceTipoOptions } = useWorkspaceData()
+  const recurrenceOptions = Array.isArray(workspaceTipoOptions) && workspaceTipoOptions.length > 0
+    ? workspaceTipoOptions
+    : defaultTipoOptions
   const isDespesa = entryType === 'despesa'
   const isReceita = entryType === 'receita'
   const availableCategories = getCategoriesByType(entryType)
@@ -266,11 +293,15 @@ function TabClassificacao({ form, setField, currentUser, entryType, isEditing })
           <div>
             <label className={labelCls}>Tipo</label>
             <div className="flex gap-1.5">
-              {tipoOptions.map((opt) => (
+              {recurrenceOptions.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => setField('recurrence', opt.id)}
+                  onClick={() => {
+                    setField('recurrence', opt.id)
+                    if (opt.id === 'previsao' && !form.forecastFrequency) setField('forecastFrequency', 'mensal')
+                    if (opt.id !== 'previsao' && form.forecastFrequency) setField('forecastFrequency', '')
+                  }}
                   className={`
                     flex-1 py-[7px] rounded-md text-[13px] font-medium border
                     transition-all duration-150 cursor-pointer
@@ -286,6 +317,16 @@ function TabClassificacao({ form, setField, currentUser, entryType, isEditing })
             </div>
           </div>
         </div>
+      )}
+      {isDespesa && form.recurrence === 'previsao' && (
+        <Select
+          label="Frequência da previsão"
+          value={form.forecastFrequency}
+          onChange={(e) => setField('forecastFrequency', e.target.value)}
+          placeholder="Selecione a frequência"
+        >
+          {forecastFrequencyOptions.map((opt) => <option key={opt.id} value={opt.id}>{opt.label}</option>)}
+        </Select>
       )}
 
       {isReceita && (
@@ -487,7 +528,8 @@ function TabParcelamento({ form, installmentForm, setInstallmentField, installme
 /* ------------------------------------------------------------------ */
 
 export default function Modal({ isOpen, onClose, onSave, currentUser, editingEntry = null, entryType = 'despesa' }) {
-  const { accounts, getGroupedAccountsForUser, getCategoriesByType, tipoOptions } = useWorkspaceData()
+  const { workspaceId } = useWorkspace()
+  const isPersonalWorkspace = workspaceId === 'pessoal'
   const [form, setForm] = useState(INITIAL_STATE)
   const [installmentForm, setInstallmentForm] = useState(INITIAL_INSTALLMENT)
   const [installments, setInstallments] = useState([])
@@ -508,7 +550,9 @@ export default function Modal({ isOpen, onClose, onSave, currentUser, editingEnt
         const absAmount = Math.abs(editingEntry.amount)
         setForm({
           accountId: editingEntry.accountId || '',
-          recurrence: editingEntry.recurrence === 'Fixa' || editingEntry.recurrence === 'Fixa/Anual' ? 'fixa' : editingEntry.recurrence === 'Variável' ? 'variavel' : editingEntry.recurrence === 'Parcelamento' ? 'parcelamento' : '',
+          recurrence: editingEntry.recurrence === 'Fixa' || editingEntry.recurrence === 'Fixa/Anual' ? 'fixa' : editingEntry.recurrence === 'Variável' ? 'variavel' : editingEntry.recurrence === 'Parcelamento' ? 'parcelamento' : editingEntry.recurrence === 'Previsao' || editingEntry.recurrence === 'Previsão' ? 'previsao' : '',
+          forecastFrequency: editingEntry.forecastFrequency || '',
+          forecastStartMonth: editingEntry.forecastStartMonth || '',
           categoryId: editingEntry.categoryId || '',
           captador: editingEntry.captador || '',
           description: editingEntry.description || '',
@@ -532,6 +576,9 @@ export default function Modal({ isOpen, onClose, onSave, currentUser, editingEnt
 
   const typeLabel = isReceita ? 'Receita' : 'Despesa'
   const title = isEditing ? `Editar ${typeLabel}` : `Nova ${typeLabel}`
+  const isForecastWithoutDueDate = isDespesa && form.recurrence === 'previsao'
+  const isForecastWithoutStatus = isDespesa && form.recurrence === 'previsao'
+  const isForecastFrequencyRequired = isDespesa && form.recurrence === 'previsao'
 
   // Validação
   const canSaveSingle =
@@ -541,17 +588,19 @@ export default function Modal({ isOpen, onClose, onSave, currentUser, editingEnt
     form.categoryId !== '' &&
     form.description.trim() !== '' &&
     form.amount !== '' &&
-    form.dueDate !== '' &&
-    form.status !== '' &&
+    (isForecastWithoutDueDate || form.dueDate !== '') &&
+    (isForecastWithoutStatus || form.status !== '') &&
     (!isDespesa || form.recurrence !== '') &&
+    (!isForecastFrequencyRequired || form.forecastFrequency !== '') &&
     (!isReceita || form.captador !== '')
 
   const canSaveInstallments = installments.length > 0 && form.owner !== ''
   const showParcelamento = form.isInstallment && !isEditing
-  const canSave = activeTab === 'parcelamento' ? canSaveInstallments : canSaveSingle
+  const isInstallmentFlow = showParcelamento && (isPersonalWorkspace || activeTab === 'parcelamento')
+  const canSave = isInstallmentFlow ? canSaveInstallments : canSaveSingle
 
   const handleSave = () => {
-    if (activeTab === 'parcelamento') {
+    if (isInstallmentFlow) {
       if (!canSaveInstallments) return
       const baseDescription = form.description.trim()
       const entries = installments.map((row) => {
@@ -576,6 +625,11 @@ export default function Modal({ isOpen, onClose, onSave, currentUser, editingEnt
     } else {
       if (!canSaveSingle) return
       const numericAmount = parseCurrencyToNumber(form.amount)
+      const now = new Date()
+      const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      const forecastStartMonth = isForecastFrequencyRequired
+        ? (form.forecastStartMonth || (form.dueDate ? form.dueDate.slice(0, 7) : currentYearMonth))
+        : ''
       const entry = {
         id: isEditing ? editingEntry.id : Date.now(),
         description: form.description.trim(),
@@ -583,8 +637,10 @@ export default function Modal({ isOpen, onClose, onSave, currentUser, editingEnt
         dueDate: form.dueDate,
         settlementDate: form.settlementDate || '',
         type: capitalizeFirst(type),
-        status: form.status,
-        recurrence: isDespesa ? capitalizeFirst(form.recurrence) : 'Variável',
+        status: form.status || 'pendente',
+        recurrence: isDespesa ? formatRecurrenceLabel(form.recurrence) : 'Variável',
+        forecastFrequency: isForecastFrequencyRequired ? form.forecastFrequency : '',
+        forecastStartMonth,
         accountId: form.accountId,
         categoryId: form.categoryId,
         captador: isReceita ? form.captador : '',
@@ -596,11 +652,13 @@ export default function Modal({ isOpen, onClose, onSave, currentUser, editingEnt
   }
 
   // Tabs disponíveis
-  const tabs = [
-    { id: 'geral', label: 'Geral' },
-    { id: 'classificacao', label: 'Classificação' },
-    ...(showParcelamento ? [{ id: 'parcelamento', label: 'Parcelamento' }] : []),
-  ]
+  const tabs = isPersonalWorkspace
+    ? []
+    : [
+        { id: 'geral', label: 'Geral' },
+        { id: 'classificacao', label: 'Classificação' },
+        ...(showParcelamento ? [{ id: 'parcelamento', label: 'Parcelamento' }] : []),
+      ]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -628,46 +686,82 @@ export default function Modal({ isOpen, onClose, onSave, currentUser, editingEnt
           </div>
         </div>
 
-        {/* Corpo horizontal: sidebar + conteúdo */}
-        <div className="flex flex-1 min-h-0 px-7 pb-0">
-          {/* Sub-abas fixas à esquerda */}
-          <nav className="flex flex-col gap-1 w-[140px] shrink-0 pr-5 border-r border-border pt-1">
-            {tabs.map((tab) => (
-              <SideTab
-                key={tab.id}
-                label={tab.label}
-                active={activeTab === tab.id}
-                onClick={() => setActiveTab(tab.id)}
-              />
-            ))}
-          </nav>
+        {/* Corpo */}
+        {isPersonalWorkspace ? (
+          <div className="flex flex-1 min-h-0 px-7 pb-0">
+            <div className="flex-1 min-w-0 overflow-y-auto pb-4 pt-1 space-y-5">
+              <div>
+                <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">Geral</h4>
+                <TabGeral form={form} setField={setField} entryType={type} />
+              </div>
 
-          {/* Área de conteúdo da aba (com scroll independente) */}
-          <div className="flex-1 min-w-0 pl-6 overflow-y-auto pb-4 pt-1">
-            {activeTab === 'geral' && (
-              <TabGeral form={form} setField={setField} entryType={type} />
-            )}
-            {activeTab === 'classificacao' && (
-              <TabClassificacao
-                form={form}
-                setField={setField}
-                currentUser={currentUser}
-                entryType={type}
-                isEditing={isEditing}
-              />
-            )}
-            {activeTab === 'parcelamento' && (
-              <TabParcelamento
-                form={form}
-                installmentForm={installmentForm}
-                setInstallmentField={setInstallmentField}
-                installments={installments}
-                setInstallments={setInstallments}
-                entryType={type}
-              />
-            )}
+              <div className="pt-1 border-t border-border">
+                <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">Classificação</h4>
+                <TabClassificacao
+                  form={form}
+                  setField={setField}
+                  currentUser={currentUser}
+                  entryType={type}
+                  isEditing={isEditing}
+                />
+              </div>
+
+              {showParcelamento && (
+                <div className="pt-1 border-t border-border">
+                  <h4 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">Parcelamento</h4>
+                  <TabParcelamento
+                    form={form}
+                    installmentForm={installmentForm}
+                    setInstallmentField={setInstallmentField}
+                    installments={installments}
+                    setInstallments={setInstallments}
+                    entryType={type}
+                  />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-1 min-h-0 px-7 pb-0">
+            {/* Sub-abas fixas à esquerda */}
+            <nav className="flex flex-col gap-1 w-[140px] shrink-0 pr-5 border-r border-border pt-1">
+              {tabs.map((tab) => (
+                <SideTab
+                  key={tab.id}
+                  label={tab.label}
+                  active={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                />
+              ))}
+            </nav>
+
+            {/* Área de conteúdo da aba (com scroll independente) */}
+            <div className="flex-1 min-w-0 pl-6 overflow-y-auto pb-4 pt-1">
+              {activeTab === 'geral' && (
+                <TabGeral form={form} setField={setField} entryType={type} />
+              )}
+              {activeTab === 'classificacao' && (
+                <TabClassificacao
+                  form={form}
+                  setField={setField}
+                  currentUser={currentUser}
+                  entryType={type}
+                  isEditing={isEditing}
+                />
+              )}
+              {activeTab === 'parcelamento' && (
+                <TabParcelamento
+                  form={form}
+                  installmentForm={installmentForm}
+                  setInstallmentField={setInstallmentField}
+                  installments={installments}
+                  setInstallments={setInstallments}
+                  entryType={type}
+                />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Footer fixo com SALVAR */}
         <div className="px-7 py-5 shrink-0">

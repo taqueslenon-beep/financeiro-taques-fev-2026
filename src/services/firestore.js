@@ -31,12 +31,19 @@ function accountsCollection(prefix = '') {
 
 const entriesRef = collection(db, 'entries')
 
-export function subscribeEntries(callback, prefix = '') {
+export function subscribeEntries(callback, prefix = '', onError) {
   const ref = entriesCollection(prefix)
-  return onSnapshot(ref, (snapshot) => {
-    const entries = snapshot.docs.map((d) => ({ ...d.data(), _docId: d.id }))
-    callback(entries)
-  })
+  return onSnapshot(
+    ref,
+    (snapshot) => {
+      const entries = snapshot.docs.map((d) => ({ ...d.data(), _docId: d.id }))
+      callback(entries)
+    },
+    (err) => {
+      console.error('[Firestore] subscribeEntries error:', err)
+      if (onError) onError(err)
+    },
+  )
 }
 
 export async function fetchEntries(prefix = '') {
@@ -109,6 +116,39 @@ export async function fetchInvoiceData(prefix = '') {
 export async function saveInvoiceData(data, prefix = '') {
   const ref = settingsDocRef('invoiceData', prefix)
   await setDoc(ref, data)
+}
+
+// ── Projection Data ──────────────────────────────────────────────
+
+export async function fetchProjectionData(prefix = '') {
+  const ref = settingsDocRef('projection', prefix)
+  const snap = await getDoc(ref)
+  return snap.exists() ? snap.data() : null
+}
+
+export async function saveProjectionData(data, prefix = '') {
+  const ref = settingsDocRef('projection', prefix)
+  const clean = {
+    monthlyIncome: data.monthlyIncome ?? 0,
+    newItems: (data.newItems || []).map(({ id, category, label, amount }) => ({
+      id: id || '', category: category || '', label: label || '', amount: amount || 0,
+    })),
+    tangoItems: (data.tangoItems || []).map(({ id, label, amount }) => ({
+      id: id || '', label: label || '', amount: amount || 0,
+    })),
+    confortavelItems: (data.confortavelItems || []).map(({ id, label, amount }) => ({
+      id: id || '', label: label || '', amount: amount || 0,
+    })),
+    setupCategories: (data.setupCategories || []).map(({ id, label, items }) => ({
+      id: id || '', label: label || '',
+      items: (items || []).map((item) => ({
+        id: item.id || '', label: item.label || '',
+        kitnet: item.kitnet || 0, mediano: item.mediano || 0, confortavel: item.confortavel || 0,
+      })),
+    })),
+    updatedAt: new Date().toISOString(),
+  }
+  await setDoc(ref, clean)
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
